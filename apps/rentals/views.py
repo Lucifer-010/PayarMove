@@ -424,11 +424,15 @@ class PropertyViewSet(viewsets.ModelViewSet):
         units = prop.units.all()
         return Response(RentalUnitSerializer(units, many=True).data)
 
-    @action(detail=True, methods=['get'])
+    @action(detail=True, methods=['get'], url_path='active-tenants')
     def active_tenants(self, request, pk=None):
         prop = self.get_object()
         assignments = prop.assignments.filter(status=TenantAssignment.Status.ACTIVE)
         return Response(TenantAssignmentSerializer(assignments, many=True).data)
+
+    @action(detail=True, methods=['get'], url_path='active_tenants')
+    def active_tenants_legacy(self, request, pk=None):
+        return self.active_tenants(request, pk)
 
     @action(detail=True, methods=['get'])
     def obligations(self, request, pk=None):
@@ -584,7 +588,7 @@ class RentalScheduleViewSet(viewsets.ModelViewSet):
     def list(self, request, *args, **kwargs):
         return super().list(request, *args, **kwargs)
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], url_path='generate-obligations')
     def generate_obligations(self, request, pk=None):
         """
         Manually trigger generation of recurring rent obligations for this schedule.
@@ -597,6 +601,10 @@ class RentalScheduleViewSet(viewsets.ModelViewSet):
             'message': f"Generated {len(generated)} rental obligations for {schedule.schedule_code}",
             'obligations': RentObligationSerializer(generated, many=True).data
         })
+
+    @action(detail=True, methods=['post'], url_path='generate_obligations')
+    def generate_obligations_legacy(self, request, pk=None):
+        return self.generate_obligations(request, pk)
 
 
 class RentObligationViewSet(viewsets.ReadOnlyModelViewSet):
@@ -645,14 +653,14 @@ class RentObligationViewSet(viewsets.ReadOnlyModelViewSet):
     def list(self, request, *args, **kwargs):
         return super().list(request, *args, **kwargs)
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], url_path='create-payment-request')
     def create_payment_request(self, request, pk=None):
         """
         Generate a unique payment request for this rent obligation.
         Supports partial payment by specifying custom amount.
         """
         obligation = self.get_object()
-        req_amount = request.data.get('amount')
+        req_amount = request.data.get('amount') or request.data.get('amount_usdc')
         if req_amount:
             try:
                 amt = Decimal(str(req_amount)).quantize(Decimal('0.0000001'))
@@ -677,6 +685,10 @@ class RentObligationViewSet(viewsets.ReadOnlyModelViewSet):
             expires_at=timezone.now() + timezone.timedelta(days=7)
         )
         return Response(PaymentRequestSerializer(payment_request).data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=['post'], url_path='create_payment_request')
+    def create_payment_request_legacy(self, request, pk=None):
+        return self.create_payment_request(request, pk)
 
     @action(detail=True, methods=['get'])
     def payments(self, request, pk=None):
@@ -760,6 +772,10 @@ class PaymentReconciliationViewSet(viewsets.ReadOnlyModelViewSet):
 
         status_code = status.HTTP_200_OK if result.get('success') else status.HTTP_400_BAD_REQUEST
         return Response(result, status=status_code)
+
+    @action(detail=False, methods=['post'], url_path='verify_transaction')
+    def verify_transaction_legacy(self, request):
+        return self.verify_transaction(request)
 
     @extend_schema(
         tags=['Stellar Reconciliation'],

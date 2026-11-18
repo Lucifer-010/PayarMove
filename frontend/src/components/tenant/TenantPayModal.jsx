@@ -104,7 +104,7 @@ export default function TenantPayModal({ isOpen, onClose, obligation, onSuccess 
   };
 
   const receivingWallet = paymentRequest?.receiving_wallet || obligation?.receiving_wallet || 'GC2R34KLSLB2UMOOTPAJ7PGJUHVPYVP77DR27DZCD5CWRD3K7MQOEKLT';
-  const memoText = paymentRequest?.memo_text || obligation?.obligation_reference || `OBL-${obligation?.id?.slice(0, 8)}`;
+  const memoText = paymentRequest?.payment_memo || paymentRequest?.memo_text || obligation?.payment_memo || obligation?.obligation_reference || `OBL-${obligation?.id?.slice(0, 8)}`;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">

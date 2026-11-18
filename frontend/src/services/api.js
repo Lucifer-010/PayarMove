@@ -463,7 +463,7 @@ export const api = {
     createPaymentRequest: (obligationId, amountUsdc = null) =>
       request(`/rentals/obligations/${obligationId}/create-payment-request/`, {
         method: 'POST',
-        body: JSON.stringify(amountUsdc ? { amount_usdc: amountUsdc } : {}),
+        body: JSON.stringify(amountUsdc ? { amount: amountUsdc, amount_usdc: amountUsdc } : {}),
       }),
     getPayments: (obligationId) => request(`/rentals/obligations/${obligationId}/payments/`),
     getReceipts: (obligationId) => request(`/rentals/obligations/${obligationId}/receipts/`),

@@ -11,19 +11,23 @@ import {
   Loader2,
   ArrowRight,
   ShieldCheck,
-  FileText,
+  Send,
+  Building,
+  RefreshCw,
 } from 'lucide-react';
 import api from '../../services/api';
 import { useApp } from '../../context/AppContext';
+import { connectWallet, signTransaction, getConnectedAddress } from '../../services/stellarWallet';
 
 export default function TenantPayModal({ isOpen, onClose, obligation, onSuccess }) {
   const { connectedWallet, handleConnectWallet } = useApp();
 
   const [payType, setPayType] = useState('full'); // 'full' | 'partial'
   const [customAmount, setCustomAmount] = useState('');
-  const [step, setStep] = useState('select_amount'); // 'select_amount' | 'stellar_details' | 'confirming' | 'success' | 'failed'
+  const [step, setStep] = useState('select_amount'); // 'select_amount' | 'signing' | 'manual_hash' | 'confirming' | 'success' | 'failed'
   const [paymentRequest, setPaymentRequest] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [signingStatus, setSigningStatus] = useState('');
   const [txHashInput, setTxHashInput] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   const [copiedAddress, setCopiedAddress] = useState(false);
@@ -38,8 +42,10 @@ export default function TenantPayModal({ isOpen, onClose, obligation, onSuccess 
       setPayType('full');
       setCustomAmount('');
       setErrorMsg('');
+      setSigningStatus('');
       setTxHashInput('');
       setReconciliationResult(null);
+      setPaymentRequest(null);
     }
   }, [isOpen, obligation]);
 
@@ -47,26 +53,127 @@ export default function TenantPayModal({ isOpen, onClose, obligation, onSuccess 
 
   const targetAmount = payType === 'full' ? outstanding : Number(customAmount) || 0;
 
-  // Step 1 -> Step 2: Generate / fetch payment request with memo
-  const handleProceedToPayment = async () => {
+  const receivingWallet =
+    paymentRequest?.receiving_wallet ||
+    obligation?.receiving_wallet ||
+    'GAPSKIPMRDLTFEKHV6VQKKMDUUIX2I56YVURD62KIYJ6Y6EJSOTP2ZWK';
+
+  const memoText =
+    paymentRequest?.payment_memo ||
+    paymentRequest?.memo_text ||
+    obligation?.payment_memo ||
+    obligation?.obligation_reference ||
+    `OBL-${obligation?.id?.slice(0, 8)}`;
+
+  // TRIGGER TRANSACTION SIGNING IN FREIGHTER WALLET
+  const handleSignAndPay = async () => {
     if (payType === 'partial' && (targetAmount <= 0 || targetAmount > outstanding)) {
       setErrorMsg(`Please enter an amount between 1 and ${outstanding} USDC.`);
       return;
     }
     setErrorMsg('');
+    setStep('signing');
     setLoading(true);
+
     try {
-      const res = await api.obligations.createPaymentRequest(obligation.id, targetAmount);
-      setPaymentRequest(res);
-      setStep('stellar_details');
+      // 1. Get or request connected wallet address
+      setSigningStatus('Connecting to Freighter wallet...');
+      let address = connectedWallet?.address || getConnectedAddress();
+
+      // If not yet connected, request access from Freighter directly
+      if (!address) {
+        const connResult = await connectWallet('freighter', false);
+        if (!connResult.success || !connResult.address) {
+          throw new Error(
+            connResult.error ||
+              'Freighter wallet connection was cancelled. Ensure Freighter browser extension is installed and unlocked, or choose to verify with transaction hash below.'
+          );
+        }
+        address = connResult.address;
+        if (handleConnectWallet) {
+          handleConnectWallet('freighter');
+        }
+      }
+
+      // 2. Request backend to create payment request and build Stellar transaction XDR
+      setSigningStatus('Preparing transaction: sending to property owner address...');
+      const reqRes = await api.obligations.createPaymentRequest(obligation.id, targetAmount, address);
+      setPaymentRequest(reqRes);
+
+      let txXdr = reqRes?.transaction_xdr;
+      const networkPassphrase = reqRes?.network_passphrase || 'Test SDF Network ; September 2015';
+
+      if (!txXdr) {
+        // Fallback to prepare-transaction endpoint if needed
+        const prepRes = await api.obligations.prepareTransaction(obligation.id, address, targetAmount);
+        txXdr = prepRes?.transaction_xdr;
+      }
+
+      if (!txXdr) {
+        throw new Error('Could not build Stellar transaction XDR for this obligation.');
+      }
+
+      // 3. TRIGGER WALLET SIGNING POPUP!
+      // This actively invokes Freighter extension popup (window.freighterApi.signTransaction)
+      setSigningStatus('Awaiting signature in Freighter popup... Please approve the transaction to send payment to the property owner.');
+      const signResult = await signTransaction(txXdr, networkPassphrase);
+
+      if (!signResult.success) {
+        throw new Error(
+          signResult.error ||
+            'Transaction signing was cancelled or rejected in Freighter wallet.'
+        );
+      }
+
+      const signedXdr = signResult.signedTxXdr || txXdr;
+
+      // 4. Submit signed transaction to Stellar Testnet Horizon
+      setSigningStatus('Submitting signed transaction to Stellar Testnet Horizon...');
+      let finalTxHash = null;
+
+      try {
+        const horizonRes = await fetch('https://horizon-testnet.stellar.org/transactions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({ tx: signedXdr }).toString(),
+        });
+        const horizonData = await horizonRes.json();
+
+        if (horizonRes.ok && horizonData.hash) {
+          finalTxHash = horizonData.hash;
+        } else {
+          const detail =
+            horizonData?.extras?.result_codes?.transaction ||
+            horizonData?.detail ||
+            horizonData?.title ||
+            'Stellar Horizon rejected transaction.';
+          console.warn('Horizon submit issue:', horizonData);
+          throw new Error(`Stellar Horizon error: ${detail}`);
+        }
+      } catch (hErr) {
+        throw new Error(hErr.message || 'Failed to broadcast transaction to Stellar network.');
+      }
+
+      if (!finalTxHash) {
+        throw new Error('Did not receive transaction hash from Stellar Testnet.');
+      }
+
+      // 5. Automatically reconcile with PayarMove backend and generate receipt
+      setSigningStatus('Transaction confirmed on-chain! Reconciling obligation and generating receipt...');
+      const reconcileRes = await api.reconciliation.verifyTransaction(finalTxHash);
+      setReconciliationResult(reconcileRes);
+      setStep('success');
+      if (onSuccess) onSuccess(reconcileRes);
     } catch (err) {
-      setErrorMsg(err.message || 'Failed to initiate payment request.');
+      console.error('Wallet payment error:', err);
+      setErrorMsg(err.message || 'Payment or signing failed.');
+      setStep('failed');
     } finally {
       setLoading(false);
     }
   };
 
-  // Reconcile Stellar transaction hash
+  // Reconcile Stellar transaction hash manually
   const handleVerifyTransaction = async (hashToVerify) => {
     const hash = (hashToVerify || txHashInput).trim();
     if (!hash || hash.length !== 64) {
@@ -83,7 +190,10 @@ export default function TenantPayModal({ isOpen, onClose, obligation, onSuccess 
       setStep('success');
       if (onSuccess) onSuccess(res);
     } catch (err) {
-      setErrorMsg(err.message || 'Transaction verification failed. Ensure the payment was sent on Stellar Testnet with the correct memo.');
+      setErrorMsg(
+        err.message ||
+          'Transaction verification failed. Ensure the payment was sent on Stellar Testnet to the property owner address with the required memo.'
+      );
       setStep('failed');
     } finally {
       setLoading(false);
@@ -103,9 +213,6 @@ export default function TenantPayModal({ isOpen, onClose, obligation, onSuccess 
     }
   };
 
-  const receivingWallet = paymentRequest?.receiving_wallet || obligation?.receiving_wallet || 'GC2R34KLSLB2UMOOTPAJ7PGJUHVPYVP77DR27DZCD5CWRD3K7MQOEKLT';
-  const memoText = paymentRequest?.payment_memo || paymentRequest?.memo_text || obligation?.payment_memo || obligation?.obligation_reference || `OBL-${obligation?.id?.slice(0, 8)}`;
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
       <div className="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-8 shadow-2xl border border-gray-100 relative animate-in fade-in zoom-in-95 duration-200">
@@ -116,7 +223,7 @@ export default function TenantPayModal({ isOpen, onClose, obligation, onSuccess 
           <X className="w-5 h-5" />
         </button>
 
-        {/* STEP 1: Select Amount */}
+        {/* STEP 1: Select Amount & Initiate Payment */}
         {step === 'select_amount' && (
           <div>
             <div className="flex items-center gap-3 mb-5">
@@ -124,9 +231,9 @@ export default function TenantPayModal({ isOpen, onClose, obligation, onSuccess 
                 <CreditCard className="w-5 h-5" />
               </div>
               <div>
-                <h2 className="text-xl font-extrabold text-[#111111]">Pay Rent in USDC</h2>
+                <h2 className="text-xl font-extrabold text-[#111111]">Pay Rent with Stellar</h2>
                 <p className="text-xs text-gray-500">
-                  {obligation?.property_name || 'Property'} · {obligation?.unit_number ? `Unit ${obligation.unit_number}` : ''}
+                  {obligation?.property_name || 'Property'} {obligation?.unit_number ? `· Unit ${obligation.unit_number}` : ''}
                 </p>
               </div>
             </div>
@@ -140,8 +247,33 @@ export default function TenantPayModal({ isOpen, onClose, obligation, onSuccess 
 
             <div className="p-4 rounded-2xl bg-[#F2F7F7] border border-gray-200/80 mb-5">
               <div className="text-xs text-gray-500 font-semibold mb-1">Total Outstanding Rent</div>
-              <div className="text-3xl font-black text-[#111111]">{outstanding.toFixed(2)} <span className="text-lg font-bold text-gray-600">USDC</span></div>
-              <div className="text-xs text-gray-400 mt-1">Period: {obligation?.billing_period_start} to {obligation?.billing_period_end}</div>
+              <div className="text-3xl font-black text-[#111111]">
+                {outstanding.toFixed(2)} <span className="text-lg font-bold text-gray-600">USDC</span>
+              </div>
+              <div className="text-xs text-gray-400 mt-1">
+                Period: {obligation?.period_start_date || obligation?.billing_period_start} to {obligation?.period_end_date || obligation?.billing_period_end}
+              </div>
+            </div>
+
+            {/* Property Owner Wallet Card */}
+            <div className="p-3.5 rounded-2xl bg-gray-50 border border-gray-200 mb-5 text-xs">
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="font-bold text-gray-700 flex items-center gap-1.5">
+                  <Building className="w-3.5 h-3.5 text-[#0A4F4E]" />
+                  Property Owner Address (Destination):
+                </span>
+                <button
+                  type="button"
+                  onClick={() => copyToClipboard(receivingWallet, 'address')}
+                  className="text-xs font-semibold text-[#0A4F4E] hover:underline flex items-center gap-1"
+                >
+                  {copiedAddress ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                  {copiedAddress ? 'Copied' : 'Copy'}
+                </button>
+              </div>
+              <div className="font-mono text-[11px] text-gray-800 break-all select-all font-semibold bg-white p-2 rounded-xl border border-gray-200">
+                {receivingWallet}
+              </div>
             </div>
 
             <div className="space-y-3 mb-6">
@@ -155,8 +287,8 @@ export default function TenantPayModal({ isOpen, onClose, obligation, onSuccess 
                 }`}
               >
                 <div>
-                  <div className="font-bold text-sm text-gray-900">Pay Full Outstanding Balance</div>
-                  <div className="text-xs text-gray-500">Settles this obligation in full</div>
+                  <div className="font-bold text-sm text-gray-900">Pay Full Balance</div>
+                  <div className="text-xs text-gray-500">Settles this rental obligation in full</div>
                 </div>
                 <div className="text-base font-extrabold text-[#0A4F4E]">${outstanding.toFixed(2)} USDC</div>
               </div>
@@ -196,36 +328,77 @@ export default function TenantPayModal({ isOpen, onClose, obligation, onSuccess 
               </div>
             </div>
 
+            {/* Primary Action: Trigger Wallet Transaction Signing */}
             <button
-              onClick={handleProceedToPayment}
+              onClick={handleSignAndPay}
               disabled={loading || (payType === 'partial' && (!customAmount || Number(customAmount) <= 0))}
-              className="w-full py-3.5 px-4 rounded-xl bg-[#0A4F4E] hover:bg-[#083D3C] text-white font-bold text-sm shadow-md transition flex items-center justify-center gap-2 disabled:opacity-50"
+              className="w-full py-4 px-4 rounded-2xl bg-[#0A4F4E] hover:bg-[#083D3C] text-white font-extrabold text-sm shadow-lg shadow-[#0A4F4E]/25 transition flex items-center justify-center gap-2.5 disabled:opacity-50 cursor-pointer"
             >
-              {loading ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Generating Request...
-                </>
-              ) : (
-                <>
-                  Continue to Stellar Payment (${targetAmount.toFixed(2)} USDC)
-                  <ArrowRight className="w-4 h-4" />
-                </>
-              )}
+              <Wallet className="w-5 h-5 text-emerald-300" />
+              <span>Sign & Pay with Wallet (${targetAmount.toFixed(2)} USDC)</span>
+              <ArrowRight className="w-4 h-4" />
             </button>
+
+            {/* Secondary Option: Verify by entering transaction hash */}
+            <div className="mt-4 pt-4 border-t border-gray-100 text-center">
+              <button
+                type="button"
+                onClick={() => {
+                  setErrorMsg('');
+                  setStep('manual_hash');
+                }}
+                className="inline-flex items-center gap-1.5 text-xs font-semibold text-gray-500 hover:text-[#0A4F4E] transition cursor-pointer"
+              >
+                <ShieldCheck className="w-4 h-4 text-gray-400" />
+                <span>Paid from another wallet? <strong className="text-[#0A4F4E] underline">Verify payment by entering transaction hash</strong></span>
+              </button>
+            </div>
           </div>
         )}
 
-        {/* STEP 2: Stellar Payment Details & Verification */}
-        {step === 'stellar_details' && (
+        {/* STEP 2: Active Wallet Signing Popup State */}
+        {step === 'signing' && (
+          <div className="py-10 text-center">
+            <div className="w-16 h-16 rounded-3xl bg-[#0A4F4E]/10 text-[#0A4F4E] flex items-center justify-center mx-auto mb-4 animate-pulse">
+              <Wallet className="w-8 h-8" />
+            </div>
+            <h3 className="text-lg font-black text-gray-900 mb-2">Triggering Wallet Transaction Signing</h3>
+            <p className="text-xs text-gray-600 max-w-sm mx-auto mb-6 leading-relaxed">
+              {signingStatus || 'Opening wallet popup. Please confirm and sign the payment to the property owner address in Freighter.'}
+            </p>
+
+            <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-left space-y-2 mb-6 text-xs max-w-sm mx-auto">
+              <div className="flex justify-between">
+                <span className="text-amber-800 font-semibold">Payment Destination:</span>
+                <span className="font-mono text-gray-900 font-bold">{receivingWallet.slice(0, 6)}...{receivingWallet.slice(-6)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-amber-800 font-semibold">Amount to Send:</span>
+                <span className="font-bold text-gray-900">${targetAmount.toFixed(2)} USDC</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-amber-800 font-semibold">Attached Memo:</span>
+                <span className="font-mono text-gray-900 font-bold">{memoText}</span>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-center gap-2 text-xs text-gray-400">
+              <Loader2 className="w-4 h-4 animate-spin text-[#0A4F4E]" />
+              <span>Awaiting Freighter signature...</span>
+            </div>
+          </div>
+        )}
+
+        {/* STEP 3: Manual Transaction Hash Entry View */}
+        {step === 'manual_hash' && (
           <div>
             <div className="flex items-center gap-3 mb-4">
               <div className="w-10 h-10 rounded-2xl bg-[#0A4F4E]/10 flex items-center justify-center text-[#0A4F4E]">
-                <Wallet className="w-5 h-5" />
+                <ShieldCheck className="w-5 h-5" />
               </div>
               <div>
-                <h2 className="text-xl font-extrabold text-[#111111]">Send Stellar Payment</h2>
-                <p className="text-xs text-gray-500">Pay on Stellar Testnet in digital USDC</p>
+                <h2 className="text-xl font-extrabold text-[#111111]">Verify Payment Hash</h2>
+                <p className="text-xs text-gray-500">Reconcile transaction sent from external wallet</p>
               </div>
             </div>
 
@@ -240,7 +413,7 @@ export default function TenantPayModal({ isOpen, onClose, obligation, onSuccess 
               {/* Payment Amount Card */}
               <div className="p-3.5 rounded-2xl bg-[#0A4F4E]/5 border border-[#0A4F4E]/20 flex items-center justify-between">
                 <div>
-                  <span className="text-xs text-gray-500 font-semibold">Amount to Send</span>
+                  <span className="text-xs text-gray-500 font-semibold">Rent Amount</span>
                   <div className="text-2xl font-black text-[#0A4F4E]">{targetAmount.toFixed(2)} USDC</div>
                 </div>
                 <div className="text-right">
@@ -249,10 +422,10 @@ export default function TenantPayModal({ isOpen, onClose, obligation, onSuccess 
                 </div>
               </div>
 
-              {/* Receiving Address */}
+              {/* Property Owner Receiving Address */}
               <div className="p-3 rounded-xl border border-gray-200 bg-gray-50">
                 <div className="flex items-center justify-between mb-1">
-                  <span className="text-xs font-bold text-gray-500">Landlord Receiving Wallet</span>
+                  <span className="text-xs font-bold text-gray-500">Property Owner Receiving Wallet</span>
                   <button
                     onClick={() => copyToClipboard(receivingWallet, 'address')}
                     className="text-xs font-semibold text-[#0A4F4E] hover:underline flex items-center gap-1"
@@ -282,14 +455,14 @@ export default function TenantPayModal({ isOpen, onClose, obligation, onSuccess 
                   {memoText}
                 </div>
                 <p className="text-[11px] text-amber-800 mt-1">
-                  * Important: Always attach this memo so the payment is automatically credited to your rental obligation.
+                  * Must match the memo used in your transfer for automatic reconciliation.
                 </p>
               </div>
 
               {/* Transaction Hash Input */}
               <div className="pt-2">
                 <label className="block text-xs font-bold text-gray-700 mb-1">
-                  Already paid? Paste Stellar Transaction Hash:
+                  Paste 64-Character Stellar Transaction Hash:
                 </label>
                 <input
                   type="text"
@@ -311,7 +484,7 @@ export default function TenantPayModal({ isOpen, onClose, obligation, onSuccess 
               <button
                 onClick={() => handleVerifyTransaction()}
                 disabled={loading || !txHashInput.trim()}
-                className="flex-1 py-3 px-4 rounded-xl bg-[#0A4F4E] hover:bg-[#083D3C] text-white font-bold text-sm shadow-md transition flex items-center justify-center gap-2 disabled:opacity-50"
+                className="flex-1 py-3 px-4 rounded-xl bg-[#0A4F4E] hover:bg-[#083D3C] text-white font-bold text-sm shadow-md transition flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
               >
                 {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
                 Verify & Settle Payment
@@ -320,7 +493,7 @@ export default function TenantPayModal({ isOpen, onClose, obligation, onSuccess 
           </div>
         )}
 
-        {/* STEP 3: Confirming / Polling Horizon */}
+        {/* STEP 4: Confirming / Polling Horizon */}
         {step === 'confirming' && (
           <div className="py-12 text-center">
             <Loader2 className="w-12 h-12 text-[#0A4F4E] animate-spin mx-auto mb-4" />
@@ -331,7 +504,7 @@ export default function TenantPayModal({ isOpen, onClose, obligation, onSuccess 
           </div>
         )}
 
-        {/* STEP 4: Success / Payment Received (F2 Step 4) */}
+        {/* STEP 5: Success / Payment Confirmed */}
         {step === 'success' && (
           <div className="text-center py-4">
             <div className="w-14 h-14 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center mx-auto mb-4">
@@ -339,7 +512,7 @@ export default function TenantPayModal({ isOpen, onClose, obligation, onSuccess 
             </div>
             <h3 className="text-xl font-black text-gray-950 mb-1">Payment Received!</h3>
             <p className="text-xs text-gray-500 mb-5">
-              Your rent payment was verified and credited on Stellar Testnet.
+              Your rent payment was verified and credited directly to the property owner on Stellar Testnet.
             </p>
 
             <div className="p-4 rounded-2xl bg-gray-50 border border-gray-200 text-left space-y-2 mb-6 text-xs">
@@ -352,8 +525,8 @@ export default function TenantPayModal({ isOpen, onClose, obligation, onSuccess 
                 <strong className="text-gray-900 font-mono text-sm">${reconciliationResult?.remaining_balance_usdc ?? 0} USDC</strong>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-500">New Status:</span>
-                <span className="font-extrabold text-[#0A4F4E] uppercase">{reconciliationResult?.status || 'VERIFIED'}</span>
+                <span className="text-gray-500">Reconciliation Status:</span>
+                <span className="font-extrabold text-[#0A4F4E] uppercase">{reconciliationResult?.status || 'CONFIRMED'}</span>
               </div>
               {reconciliationResult?.tx_hash && (
                 <div className="pt-2 border-t border-gray-200">
@@ -372,7 +545,7 @@ export default function TenantPayModal({ isOpen, onClose, obligation, onSuccess 
             <div className="flex gap-3">
               <button
                 onClick={onClose}
-                className="flex-1 py-3 px-4 rounded-xl bg-[#0A4F4E] hover:bg-[#083D3C] text-white font-bold text-sm shadow-md transition"
+                className="flex-1 py-3 px-4 rounded-xl bg-[#0A4F4E] hover:bg-[#083D3C] text-white font-bold text-sm shadow-md transition cursor-pointer"
               >
                 Done
               </button>
@@ -380,29 +553,40 @@ export default function TenantPayModal({ isOpen, onClose, obligation, onSuccess 
           </div>
         )}
 
-        {/* STEP 5: Failed */}
+        {/* STEP 6: Failed */}
         {step === 'failed' && (
           <div className="text-center py-4">
             <div className="w-14 h-14 rounded-full bg-rose-100 text-rose-700 flex items-center justify-center mx-auto mb-4">
               <AlertCircle className="w-8 h-8" />
             </div>
-            <h3 className="text-xl font-black text-gray-950 mb-1">Verification Failed</h3>
+            <h3 className="text-xl font-black text-gray-950 mb-1">Payment / Verification Failed</h3>
             <p className="text-xs text-rose-600 mb-6 max-w-sm mx-auto">
-              {errorMsg || 'Could not verify the transaction on Stellar Testnet.'}
+              {errorMsg || 'Could not verify or sign the transaction on Stellar Testnet.'}
             </p>
 
-            <div className="flex gap-2">
+            <div className="space-y-2">
               <button
-                onClick={() => setStep('stellar_details')}
-                className="flex-1 py-3 px-4 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold text-sm transition"
+                onClick={() => setStep('select_amount')}
+                className="w-full py-3 px-4 rounded-xl bg-[#0A4F4E] hover:bg-[#083D3C] text-white font-bold text-sm transition cursor-pointer flex items-center justify-center gap-2"
               >
-                Try Again
+                <RefreshCw className="w-4 h-4" />
+                Try Signing Again with Wallet
+              </button>
+              <button
+                onClick={() => {
+                  setErrorMsg('');
+                  setStep('manual_hash');
+                }}
+                className="w-full py-3 px-4 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold text-xs transition cursor-pointer flex items-center justify-center gap-1.5"
+              >
+                <ShieldCheck className="w-4 h-4 text-gray-500" />
+                Verify Payment by Entering Transaction Hash Instead
               </button>
               <button
                 onClick={onClose}
-                className="flex-1 py-3 px-4 rounded-xl bg-gray-900 hover:bg-black text-white font-bold text-sm transition"
+                className="w-full py-2.5 px-4 rounded-xl text-gray-400 hover:text-gray-600 font-semibold text-xs transition cursor-pointer"
               >
-                Close
+                Cancel
               </button>
             </div>
           </div>
@@ -411,4 +595,3 @@ export default function TenantPayModal({ isOpen, onClose, obligation, onSuccess 
     </div>
   );
 }
-

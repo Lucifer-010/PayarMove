@@ -460,11 +460,31 @@ export const api = {
     list: (status = null) =>
       request(`/rentals/obligations/${status ? `?status=${status}` : ''}`),
     get: (id) => request(`/rentals/obligations/${id}/`),
-    createPaymentRequest: (obligationId, amountUsdc = null) =>
-      request(`/rentals/obligations/${obligationId}/create-payment-request/`, {
+    createPaymentRequest: (obligationId, amountUsdc = null, sourceAddress = null) => {
+      const payload = {};
+      if (amountUsdc) {
+        payload.amount = amountUsdc;
+        payload.amount_usdc = amountUsdc;
+      }
+      if (sourceAddress) {
+        payload.source_address = sourceAddress;
+      }
+      return request(`/rentals/obligations/${obligationId}/create-payment-request/`, {
         method: 'POST',
-        body: JSON.stringify(amountUsdc ? { amount: amountUsdc, amount_usdc: amountUsdc } : {}),
-      }),
+        body: JSON.stringify(payload),
+      });
+    },
+    prepareTransaction: (obligationId, sourceAddress, amountUsdc = null) => {
+      const payload = { source_address: sourceAddress };
+      if (amountUsdc) {
+        payload.amount = amountUsdc;
+        payload.amount_usdc = amountUsdc;
+      }
+      return request(`/rentals/obligations/${obligationId}/prepare-transaction/`, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
+    },
     getPayments: (obligationId) => request(`/rentals/obligations/${obligationId}/payments/`),
     getReceipts: (obligationId) => request(`/rentals/obligations/${obligationId}/receipts/`),
   },

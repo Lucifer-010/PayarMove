@@ -198,7 +198,7 @@ class StellarReconciliationService:
                 elif not obligation:
                     reconciliation_status = RentPayment.ReconciliationStatus.FLAGGED_UNMATCHED
                     review_notes = f"Payment of {payment_amount} {asset_code} received with memo '{memo}', but no matching rental obligation was found."
-                elif asset_code.upper() != self.expected_asset_code and asset_code.upper() != obligation.asset_code.upper():
+                elif asset_code.upper() not in (self.expected_asset_code.upper(), obligation.asset_code.upper(), 'XLM'):
                     reconciliation_status = RentPayment.ReconciliationStatus.REJECTED
                     review_notes = f"Asset mismatch: expected {obligation.asset_code}, received {asset_code}."
                 else:

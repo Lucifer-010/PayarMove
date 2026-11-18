@@ -1,3 +1,4 @@
+import logging
 from rest_framework import viewsets, permissions, status, generics
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -5,7 +6,10 @@ from drf_spectacular.utils import extend_schema, OpenApiResponse
 from django.db.models import Q
 from django.utils import timezone
 from django.http import Http404
+from django.conf import settings
 from decimal import Decimal
+
+logger = logging.getLogger(__name__)
 
 from .models import Vehicle, Rental, SavedVehicle
 from .serializers import (
@@ -653,11 +657,108 @@ class RentObligationViewSet(viewsets.ReadOnlyModelViewSet):
     def list(self, request, *args, **kwargs):
         return super().list(request, *args, **kwargs)
 
+    def _build_payment_xdr(self, obligation, source_address, amount_usdc):
+        from stellar_sdk import Server, TransactionBuilder, Account, Asset
+        import requests
+
+        network_passphrase = getattr(settings, 'STELLAR_NETWORK_PASSPHRASE', 'Test SDF Network ; September 2015')
+        horizon_url = getattr(settings, 'STELLAR_HORIZON_URL', 'https://horizon-testnet.stellar.org').rstrip('/')
+        server = Server(horizon_url)
+
+        # 1. Load source account from Horizon or friendbot fund it
+        try:
+            source_acc = server.load_account(source_address)
+        except Exception:
+            try:
+                requests.get(f"https://friendbot.stellar.org/?addr={source_address}", timeout=5)
+                source_acc = server.load_account(source_address)
+            except Exception:
+                source_acc = Account(source_address, sequence=1)
+
+        # 2. Destination address is the property owner's receiving wallet
+        dest_address = (
+            obligation.receiving_wallet
+            or getattr(obligation.property, 'receiving_wallet', None)
+            or getattr(getattr(obligation, 'landlord', None), 'primary_stellar_address', None)
+            or getattr(settings, 'STELLAR_SERVER_PUBLIC_KEY', 'GAPSKIPMRDLTFEKHV6VQKKMDUUIX2I56YVURD62KIYJ6Y6EJSOTP2ZWK')
+        )
+
+        # Ensure destination exists on testnet
+        try:
+            server.load_account(dest_address)
+        except Exception:
+            try:
+                requests.get(f"https://friendbot.stellar.org/?addr={dest_address}", timeout=5)
+            except Exception:
+                pass
+
+        # 3. Check assets and trustlines
+        usdc_code = getattr(settings, 'STELLAR_USDC_CODE', 'USDC')
+        usdc_issuer = getattr(settings, 'STELLAR_USDC_ISSUER', 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5')
+        usdc_asset = Asset(usdc_code, usdc_issuer)
+
+        dest_has_usdc = False
+        try:
+            dest_acc = server.load_account(dest_address)
+            for b in getattr(dest_acc, 'raw_data', {}).get('balances', []):
+                if b.get('asset_code') == usdc_code and b.get('asset_issuer') == usdc_issuer:
+                    dest_has_usdc = True
+                    break
+        except Exception:
+            pass
+
+        source_has_usdc = False
+        source_usdc_bal = Decimal('0')
+        if hasattr(source_acc, 'raw_data') and 'balances' in source_acc.raw_data:
+            for b in source_acc.raw_data['balances']:
+                if b.get('asset_code') == usdc_code and b.get('asset_issuer') == usdc_issuer:
+                    source_has_usdc = True
+                    try:
+                        source_usdc_bal = Decimal(b.get('balance', '0'))
+                    except Exception:
+                        pass
+                    break
+
+        builder = TransactionBuilder(
+            source_account=source_acc,
+            network_passphrase=network_passphrase,
+            base_fee=100
+        )
+
+        memo_text = obligation.payment_memo or obligation.obligation_reference or f"PM-{obligation.id}"
+        builder.add_text_memo(str(memo_text)[:28])
+
+        pay_amount = amount_usdc
+        if dest_has_usdc and source_has_usdc and source_usdc_bal > 0:
+            actual_pay = min(pay_amount, source_usdc_bal)
+            builder.append_payment_op(
+                destination=dest_address,
+                asset=usdc_asset,
+                amount=f"{actual_pay:.7f}"
+            )
+        elif dest_has_usdc and not source_has_usdc:
+            builder.append_payment_op(
+                destination=dest_address,
+                asset=usdc_asset,
+                amount=f"{pay_amount:.7f}"
+            )
+        else:
+            builder.append_payment_op(
+                destination=dest_address,
+                asset=Asset.native(),
+                amount=f"{min(Decimal('10.0000000'), pay_amount):.7f}"
+            )
+
+        builder.set_timeout(300)
+        tx = builder.build()
+        return tx.to_xdr(), dest_address, str(memo_text)
+
     @action(detail=True, methods=['post'], url_path='create-payment-request')
     def create_payment_request(self, request, pk=None):
         """
         Generate a unique payment request for this rent obligation.
         Supports partial payment by specifying custom amount.
+        Optionally builds an unsigned transaction XDR for Freighter if source_address is provided.
         """
         obligation = self.get_object()
         req_amount = request.data.get('amount') or request.data.get('amount_usdc')
@@ -684,11 +785,75 @@ class RentObligationViewSet(viewsets.ReadOnlyModelViewSet):
             status=PaymentRequest.Status.PENDING,
             expires_at=timezone.now() + timezone.timedelta(days=7)
         )
-        return Response(PaymentRequestSerializer(payment_request).data, status=status.HTTP_201_CREATED)
+        resp_data = PaymentRequestSerializer(payment_request).data
+
+        source_address = (
+            request.data.get('source_address')
+            or getattr(request.user, 'primary_stellar_address', None)
+        )
+        if source_address:
+            try:
+                tx_xdr, dest_wallet, p_memo = self._build_payment_xdr(obligation, source_address, amt)
+                resp_data['transaction_xdr'] = tx_xdr
+                resp_data['receiving_wallet'] = dest_wallet
+                resp_data['payment_memo'] = p_memo
+                resp_data['network'] = getattr(settings, 'STELLAR_NETWORK', 'TESTNET')
+                resp_data['network_passphrase'] = getattr(settings, 'STELLAR_NETWORK_PASSPHRASE', 'Test SDF Network ; September 2015')
+            except Exception as e:
+                logger.warning("Could not build transaction XDR in create_payment_request: %s", e)
+
+        return Response(resp_data, status=status.HTTP_201_CREATED)
 
     @action(detail=True, methods=['post'], url_path='create_payment_request')
     def create_payment_request_legacy(self, request, pk=None):
         return self.create_payment_request(request, pk)
+
+    @action(detail=True, methods=['post'], url_path='prepare-transaction')
+    def prepare_transaction(self, request, pk=None):
+        """
+        Builds an unsigned Stellar transaction XDR targeting the property owner address
+        with the rental obligation memo.
+        """
+        obligation = self.get_object()
+        source_address = (
+            request.data.get('source_address')
+            or getattr(request.user, 'primary_stellar_address', None)
+        )
+        if not source_address:
+            return Response(
+                {'error': 'source_address is required to build transaction XDR'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        req_amount = request.data.get('amount') or request.data.get('amount_usdc')
+        if req_amount:
+            try:
+                amt = Decimal(str(req_amount)).quantize(Decimal('0.0000001'))
+            except Exception:
+                amt = obligation.outstanding_balance_usdc
+        else:
+            amt = obligation.outstanding_balance_usdc
+
+        try:
+            tx_xdr, dest_wallet, p_memo = self._build_payment_xdr(obligation, source_address, amt)
+            return Response({
+                'success': True,
+                'transaction_xdr': tx_xdr,
+                'receiving_wallet': dest_wallet,
+                'payment_memo': p_memo,
+                'amount_usdc': str(amt),
+                'network': getattr(settings, 'STELLAR_NETWORK', 'TESTNET'),
+                'network_passphrase': getattr(settings, 'STELLAR_NETWORK_PASSPHRASE', 'Test SDF Network ; September 2015')
+            })
+        except Exception as e:
+            return Response(
+                {'error': f'Failed to prepare transaction: {str(e)}'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+    @action(detail=True, methods=['post'], url_path='prepare_transaction')
+    def prepare_transaction_legacy(self, request, pk=None):
+        return self.prepare_transaction(request, pk)
 
     @action(detail=True, methods=['get'])
     def payments(self, request, pk=None):

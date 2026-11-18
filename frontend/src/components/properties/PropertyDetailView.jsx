@@ -161,8 +161,17 @@ export default function PropertyDetailView() {
   const occupiedUnits = units.filter((u) => u.is_occupied).length;
   const availableUnitsCount = Math.max(0, totalUnits - occupiedUnits);
 
-  const monthlyRent = Number(selectedUnit?.rent_amount_usdc || 500);
-  const securityDeposit = Number(selectedUnit?.deposit_amount_usdc || monthlyRent);
+  const formatRentPrice = (val) => {
+    if (val === null || val === undefined || val === '') return '0';
+    const num = Number(val);
+    if (isNaN(num)) return '0';
+    return num.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+  };
+
+  const rawRent = selectedUnit?.rent_amount_usdc ?? selectedUnit?.monthly_rent_usdc;
+  const monthlyRent = rawRent !== undefined && rawRent !== null ? Number(rawRent) : 0;
+  const rawDeposit = selectedUnit?.deposit_amount_usdc ?? selectedUnit?.security_deposit_usdc;
+  const securityDeposit = rawDeposit !== undefined && rawDeposit !== null ? Number(rawDeposit) : monthlyRent;
   const totalDueNow = (monthlyRent + securityDeposit).toFixed(2);
 
   const handleCopyWallet = () => {
@@ -469,7 +478,7 @@ export default function PropertyDetailView() {
                         <span className="text-[11px] text-gray-400 block font-medium">Monthly Rent</span>
                         <div className="flex items-baseline gap-1">
                           <span className="text-lg font-black text-gray-950">
-                            ${Number(unit.rent_amount_usdc || 0).toLocaleString()}
+                            ${formatRentPrice(unit.rent_amount_usdc ?? unit.monthly_rent_usdc)}
                           </span>
                           <span className="text-[11px] font-bold text-gray-500">USDC</span>
                         </div>
@@ -555,7 +564,7 @@ export default function PropertyDetailView() {
               <div className="mt-3 flex items-baseline justify-between">
                 <div>
                   <span className="text-2xl sm:text-3xl font-black text-gray-950">
-                    ${monthlyRent.toLocaleString()}
+                    ${formatRentPrice(monthlyRent)}
                   </span>
                   <span className="text-xs font-bold text-gray-500 ml-1">USDC / month</span>
                 </div>

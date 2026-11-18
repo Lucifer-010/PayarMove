@@ -150,16 +150,23 @@ class RentalUnitSerializer(serializers.ModelSerializer):
     tenant_email = serializers.EmailField(source='current_tenant.email', read_only=True, allow_null=True)
     rent_amount_usdc = QuantizedDecimalField(max_digits=18, decimal_places=7, required=False)
     deposit_amount_usdc = QuantizedDecimalField(max_digits=18, decimal_places=7, required=False)
+    # Aliases for frontend flexibility
+    monthly_rent_usdc = serializers.DecimalField(source='rent_amount_usdc', max_digits=18, decimal_places=7, read_only=True)
+    security_deposit_usdc = serializers.DecimalField(source='deposit_amount_usdc', max_digits=18, decimal_places=7, read_only=True)
 
     class Meta:
         model = RentalUnit
         fields = [
             'id', 'property', 'property_name', 'unit_number', 'floor',
             'bedrooms', 'bathrooms', 'square_feet', 'rent_amount_usdc',
-            'deposit_amount_usdc', 'is_occupied', 'current_tenant',
+            'deposit_amount_usdc', 'monthly_rent_usdc', 'security_deposit_usdc',
+            'is_occupied', 'current_tenant',
             'tenant_email', 'created_at', 'updated_at'
         ]
-        read_only_fields = ['id', 'property_name', 'tenant_email', 'created_at', 'updated_at']
+        read_only_fields = [
+            'id', 'property_name', 'tenant_email', 'monthly_rent_usdc',
+            'security_deposit_usdc', 'created_at', 'updated_at'
+        ]
 
 
 class PropertySerializer(serializers.ModelSerializer):
@@ -169,6 +176,9 @@ class PropertySerializer(serializers.ModelSerializer):
     total_units_count = serializers.SerializerMethodField()
     occupied_units_count = serializers.SerializerMethodField()
     active_tenants_count = serializers.SerializerMethodField()
+    min_rent_usdc = serializers.SerializerMethodField()
+    max_rent_usdc = serializers.SerializerMethodField()
+    price_display = serializers.SerializerMethodField()
 
     class Meta:
         model = Property
@@ -178,11 +188,13 @@ class PropertySerializer(serializers.ModelSerializer):
             'postal_code', 'country', 'description', 'receiving_wallet',
             'default_asset_code', 'default_asset_issuer', 'image_url', 'images',
             'is_active', 'units', 'total_units_count', 'occupied_units_count',
-            'active_tenants_count', 'created_at', 'updated_at'
+            'active_tenants_count', 'min_rent_usdc', 'max_rent_usdc', 'price_display',
+            'created_at', 'updated_at'
         ]
         read_only_fields = [
             'id', 'landlord', 'landlord_email', 'landlord_name',
             'total_units_count', 'occupied_units_count', 'active_tenants_count',
+            'min_rent_usdc', 'max_rent_usdc', 'price_display',
             'created_at', 'updated_at'
         ]
 
@@ -199,6 +211,31 @@ class PropertySerializer(serializers.ModelSerializer):
 
     def get_active_tenants_count(self, obj):
         return obj.assignments.filter(status=TenantAssignment.Status.ACTIVE).count()
+
+    def get_min_rent_usdc(self, obj):
+        units = obj.units.all()
+        if not units.exists():
+            return None
+        min_val = min(u.rent_amount_usdc for u in units)
+        return str(min_val)
+
+    def get_max_rent_usdc(self, obj):
+        units = obj.units.all()
+        if not units.exists():
+            return None
+        max_val = max(u.rent_amount_usdc for u in units)
+        return str(max_val)
+
+    def get_price_display(self, obj):
+        units = obj.units.all()
+        if not units.exists():
+            return None
+        rents = [u.rent_amount_usdc for u in units]
+        min_r = min(rents)
+        max_r = max(rents)
+        if min_r == max_r:
+            return f"${min_r:,.2f}".rstrip('0').rstrip('.')
+        return f"From ${min_r:,.2f}".rstrip('0').rstrip('.')
 
 
 class TenantAssignmentSerializer(serializers.ModelSerializer):

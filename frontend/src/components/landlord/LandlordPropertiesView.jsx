@@ -70,6 +70,33 @@ export default function LandlordPropertiesView() {
     ],
   });
 
+  const formatRentPrice = (val) => {
+    if (val === null || val === undefined || val === '') return '0';
+    const num = Number(val);
+    if (isNaN(num)) return '0';
+    return num.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+  };
+
+  const getPropertyPriceDisplay = (prop) => {
+    if (prop.price_display) return `${prop.price_display} USDC/mo`;
+    const units = prop.units || [];
+    if (units.length > 0) {
+      const rents = units
+        .map((u) => Number(u.rent_amount_usdc ?? u.monthly_rent_usdc ?? 0))
+        .filter((r) => r > 0);
+      if (rents.length > 0) {
+        const min = Math.min(...rents);
+        const max = Math.max(...rents);
+        if (min === max) return `$${formatRentPrice(min)} USDC/mo`;
+        return `From $${formatRentPrice(min)} USDC/mo`;
+      }
+    }
+    if (prop.min_rent_usdc) {
+      return `From $${formatRentPrice(prop.min_rent_usdc)} USDC/mo`;
+    }
+    return null;
+  };
+
   const fetchProperties = async () => {
     setLoading(true);
     setErrorMsg('');
@@ -350,14 +377,19 @@ export default function LandlordPropertiesView() {
                   )}
 
                   <div className="p-6 pt-4 space-y-3">
-                    {coverPhoto && (
-                      <div className="flex items-center justify-between text-xs text-gray-500 pb-1">
-                        <span className="font-semibold text-gray-700">Units Configuration:</span>
-                        <span className="font-extrabold text-[#0A4F4E] bg-[#f0f6f4] px-2.5 py-0.5 rounded-full">
-                          {prop.total_units_count || prop.units_count || (prop.units && prop.units.length) || 1} Total Units
-                        </span>
-                      </div>
-                    )}
+                    <div className="flex items-center justify-between text-xs text-gray-500 pb-1">
+                      <span className="font-semibold text-gray-700">Units:</span>
+                      <span className="font-extrabold text-[#0A4F4E] bg-[#f0f6f4] px-2.5 py-0.5 rounded-full">
+                        {prop.total_units_count || prop.units_count || (prop.units && prop.units.length) || 1} Total Units
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between text-xs pb-1 border-b border-gray-100">
+                      <span className="font-semibold text-gray-700">Monthly Rent:</span>
+                      <span className="font-mono font-black text-xs text-[#0A4F4E]">
+                        {getPropertyPriceDisplay(prop) || 'Units registered'}
+                      </span>
+                    </div>
 
                     <div className="p-3 rounded-2xl bg-gray-50 border border-gray-200 text-xs">
                       <div className="flex items-center gap-1.5 text-gray-500 mb-1 font-semibold">
@@ -756,9 +788,14 @@ export default function LandlordPropertiesView() {
                     </div>
                   </div>
                   <div className="text-right">
-                    <div className="font-mono text-sm font-black text-gray-900">${u.monthly_rent_usdc} USDC</div>
+                    <div className="font-mono text-sm font-black text-gray-900">
+                      ${formatRentPrice(u.rent_amount_usdc ?? u.monthly_rent_usdc)} USDC
+                    </div>
+                    <div className="text-[10px] text-gray-400">
+                      Deposit: ${formatRentPrice(u.deposit_amount_usdc ?? u.security_deposit_usdc ?? u.rent_amount_usdc)} USDC
+                    </div>
                     <span
-                      className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full uppercase ${
+                      className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full uppercase inline-block mt-1 ${
                         u.is_occupied ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'
                       }`}
                     >

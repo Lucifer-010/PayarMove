@@ -117,6 +117,33 @@ export default function PropertiesListView() {
     }
   };
 
+  const formatRentPrice = (val) => {
+    if (val === null || val === undefined || val === '') return '0';
+    const num = Number(val);
+    if (isNaN(num)) return '0';
+    return num.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+  };
+
+  const getPropertyPriceDisplay = (prop) => {
+    if (prop.price_display) return prop.price_display;
+    const units = prop.units || [];
+    if (units.length > 0) {
+      const rents = units
+        .map((u) => Number(u.rent_amount_usdc ?? u.monthly_rent_usdc ?? 0))
+        .filter((r) => r > 0);
+      if (rents.length > 0) {
+        const min = Math.min(...rents);
+        const max = Math.max(...rents);
+        if (min === max) return `$${formatRentPrice(min)}`;
+        return `From $${formatRentPrice(min)}`;
+      }
+    }
+    if (prop.min_rent_usdc) {
+      return `From $${formatRentPrice(prop.min_rent_usdc)}`;
+    }
+    return null;
+  };
+
   const neighborhoods = ['All', 'Westlands', 'Kilimani', 'Riverside', 'Kileleshwa', 'Karen'];
 
   const filteredProperties = properties.filter((p) => {
@@ -258,9 +285,16 @@ export default function PropertiesListView() {
 
                   <div className="mt-5 pt-4 border-t border-gray-100 flex items-center justify-between">
                     <div>
-                      <span className="text-[10px] font-extrabold text-gray-400 uppercase tracking-wider">Pricing</span>
-                      <div className="font-mono font-black text-sm text-gray-900">
-                        In USDC <span className="text-xs font-semibold text-gray-400">/mo</span>
+                      <span className="text-[10px] font-extrabold text-gray-400 uppercase tracking-wider block">Monthly Rent</span>
+                      <div className="font-mono font-black text-sm text-[#0A4F4E]">
+                        {getPropertyPriceDisplay(prop) ? (
+                          <>
+                            <span>{getPropertyPriceDisplay(prop)}</span>{' '}
+                            <span className="text-xs font-semibold text-gray-500">USDC/mo</span>
+                          </>
+                        ) : (
+                          <span className="text-xs font-bold text-gray-400">View Units</span>
+                        )}
                       </div>
                     </div>
 
@@ -387,11 +421,11 @@ export default function PropertiesListView() {
                         <div className="flex items-center justify-between sm:justify-end gap-4 pt-2 sm:pt-0 border-t sm:border-t-0 border-gray-100">
                           <div className="text-left sm:text-right">
                             <div className="font-mono font-black text-sm text-[#0A4F4E]">
-                              ${unit.monthly_rent_usdc}{' '}
+                              ${formatRentPrice(unit.rent_amount_usdc ?? unit.monthly_rent_usdc)}{' '}
                               <span className="text-[10px] font-bold text-gray-400">USDC/mo</span>
                             </div>
                             <div className="text-[10px] text-gray-400">
-                              Deposit: ${unit.security_deposit_usdc || unit.monthly_rent_usdc} USDC
+                              Deposit: ${formatRentPrice(unit.deposit_amount_usdc ?? unit.security_deposit_usdc ?? unit.rent_amount_usdc)} USDC
                             </div>
                           </div>
 

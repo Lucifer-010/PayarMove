@@ -237,6 +237,13 @@ class PropertySerializer(serializers.ModelSerializer):
             return f"${min_r:,.2f}".rstrip('0').rstrip('.')
         return f"From ${min_r:,.2f}".rstrip('0').rstrip('.')
 
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        wallet = instance.owner_wallet
+        data['receiving_wallet'] = wallet
+        data['owner_wallet'] = wallet
+        return data
+
 
 class TenantAssignmentSerializer(serializers.ModelSerializer):
     property_name = serializers.CharField(source='property.name', read_only=True)
@@ -345,6 +352,13 @@ class RentObligationSerializer(serializers.ModelSerializer):
         pct = (obj.amount_paid_usdc / obj.amount_due_usdc) * Decimal('100.0')
         return float(min(Decimal('100.0'), pct).quantize(Decimal('0.01')))
 
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        wallet = instance.owner_receiving_wallet
+        data['receiving_wallet'] = wallet
+        data['owner_wallet'] = wallet
+        return data
+
 
 class PaymentRequestSerializer(serializers.ModelSerializer):
     obligation_reference = serializers.CharField(source='obligation.obligation_reference', read_only=True)
@@ -367,6 +381,14 @@ class PaymentRequestSerializer(serializers.ModelSerializer):
             'property_name', 'tenant_email', 'receiving_wallet',
             'payment_memo', 'memo_type', 'stellar_uri', 'created_at'
         ]
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        if instance.obligation:
+            wallet = instance.obligation.owner_receiving_wallet
+            data['receiving_wallet'] = wallet
+            data['owner_wallet'] = wallet
+        return data
 
 
 class RentPaymentSerializer(serializers.ModelSerializer):

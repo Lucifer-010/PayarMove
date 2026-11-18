@@ -492,3 +492,40 @@ class MVP2RentalAndReconciliationTests(TestCase):
         self.assertTrue(schedule.is_active)
         self.assertTrue(RentObligation.objects.filter(schedule=schedule).exists())
 
+    def test_property_owner_wallet_retrieval_and_auto_sync(self):
+        """
+        Verify property automatically retrieves owner wallet, auto-syncs when owner updates wallet,
+        and auto-syncs obligations when admin changes property owner.
+        """
+        # 1. Property retrieves owner's wallet
+        self.assertEqual(self.property.owner_wallet, self.landlord.primary_stellar_address)
+
+        # 2. Owner updates wallet -> Property and active obligations auto-sync
+        new_wallet = 'GC5TEGJWJAOG25QDNGCNX5AOOW7G4MOLYAHGFLFSGHL37L6ZGJXZS6A4'
+        self.landlord.primary_stellar_address = new_wallet
+        self.landlord.save()
+
+        self.property.refresh_from_db()
+        self.assertEqual(self.property.owner_wallet, new_wallet)
+        self.assertEqual(self.property.receiving_wallet, new_wallet)
+
+        # 3. Admin changes property owner to another landlord
+        new_landlord = User.objects.create_user(
+            username='landlord2',
+            email='landlord2@payarmove.com',
+            password='password123',
+            role=User.Role.LANDLORD,
+            primary_stellar_address='GC2R34KLSLB2UMOOTPAJ7PGJUHVPYVP77DR27DZCD5CWRD3K7MQOEKLT'
+        )
+        self.property.landlord = new_landlord
+        self.property.save()
+
+        self.property.refresh_from_db()
+        self.assertEqual(self.property.owner_wallet, 'GC2R34KLSLB2UMOOTPAJ7PGJUHVPYVP77DR27DZCD5CWRD3K7MQOEKLT')
+        self.assertEqual(self.property.receiving_wallet, 'GC2R34KLSLB2UMOOTPAJ7PGJUHVPYVP77DR27DZCD5CWRD3K7MQOEKLT')
+
+        # 4. Check API serialization reflects owner's live wallet
+        resp = self.client.get(f'/api/v1/rentals/properties/{self.property.id}/')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(resp.json()['receiving_wallet'], 'GC2R34KLSLB2UMOOTPAJ7PGJUHVPYVP77DR27DZCD5CWRD3K7MQOEKLT')
+

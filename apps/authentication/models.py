@@ -28,6 +28,25 @@ class User(AbstractUser):
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = ['username']
 
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        # Automatically sync wallet changes to all owned properties and active obligations
+        if self.primary_stellar_address and self.role in (self.Role.LANDLORD, self.Role.HOST, self.Role.ADMIN):
+            try:
+                from apps.rentals.models import Property, RentObligation
+                Property.objects.filter(landlord=self).update(receiving_wallet=self.primary_stellar_address)
+                RentObligation.objects.filter(
+                    landlord=self,
+                    status__in=[
+                        RentObligation.Status.UPCOMING,
+                        RentObligation.Status.UNPAID,
+                        RentObligation.Status.PARTIALLY_PAID,
+                        RentObligation.Status.OVERDUE,
+                    ]
+                ).update(receiving_wallet=self.primary_stellar_address)
+            except Exception:
+                pass
+
     def __str__(self):
         return f"{self.email} ({self.role})"
 

@@ -675,11 +675,12 @@ class RentObligationViewSet(viewsets.ReadOnlyModelViewSet):
             except Exception:
                 source_acc = Account(source_address, sequence=1)
 
-        # 2. Destination address is the property owner's receiving wallet
+        # 2. Destination address is the property owner's active receiving wallet
         dest_address = (
-            obligation.receiving_wallet
-            or getattr(obligation.property, 'receiving_wallet', None)
+            getattr(obligation, 'owner_receiving_wallet', None)
+            or (obligation.property.owner_wallet if obligation.property else None)
             or getattr(getattr(obligation, 'landlord', None), 'primary_stellar_address', None)
+            or obligation.receiving_wallet
             or getattr(settings, 'STELLAR_SERVER_PUBLIC_KEY', 'GAPSKIPMRDLTFEKHV6VQKKMDUUIX2I56YVURD62KIYJ6Y6EJSOTP2ZWK')
         )
 
@@ -774,13 +775,14 @@ class RentObligationViewSet(viewsets.ReadOnlyModelViewSet):
         if amt <= Decimal('0'):
             amt = obligation.outstanding_balance_usdc or obligation.amount_due_usdc
 
+        owner_wallet = getattr(obligation, 'owner_receiving_wallet', obligation.receiving_wallet)
         payment_request = PaymentRequest.objects.create(
             obligation=obligation,
             tenant=obligation.tenant,
             amount_requested=amt,
             asset_code=obligation.asset_code,
             asset_issuer=obligation.asset_issuer,
-            receiving_wallet=obligation.receiving_wallet,
+            receiving_wallet=owner_wallet,
             payment_memo=obligation.payment_memo,
             status=PaymentRequest.Status.PENDING,
             expires_at=timezone.now() + timezone.timedelta(days=7)

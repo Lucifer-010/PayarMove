@@ -79,10 +79,19 @@ class RentalUnitInline(admin.TabularInline):
 
 @admin.register(Property)
 class PropertyAdmin(admin.ModelAdmin):
-    list_display = ('name', 'property_type', 'city', 'country', 'landlord', 'receiving_wallet', 'is_active', 'created_at')
+    list_display = ('name', 'property_type', 'city', 'country', 'landlord', 'owner_wallet_display', 'is_active', 'created_at')
     list_filter = ('property_type', 'is_active', 'city', 'country')
     search_fields = ('name', 'address', 'city', 'landlord__email', 'receiving_wallet')
     inlines = [RentalUnitInline]
+
+    @admin.display(description='Owner Receiving Wallet')
+    def owner_wallet_display(self, obj):
+        return obj.owner_wallet
+
+    def save_model(self, request, obj, form, change):
+        if obj.landlord and getattr(obj.landlord, 'primary_stellar_address', None):
+            obj.receiving_wallet = obj.landlord.primary_stellar_address
+        super().save_model(request, obj, form, change)
 
 
 @admin.register(RentalUnit)

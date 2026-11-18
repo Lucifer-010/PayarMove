@@ -61,7 +61,7 @@ export default function LandlordPropertiesView() {
     address: '',
     city: 'Nairobi',
     country: 'Kenya',
-    receiving_wallet: user?.walletAddress || 'GC2R34KLSLB2UMOOTPAJ7PGJUHVPYVP77DR27DZCD5CWRD3K7MQOEKLT',
+    receiving_wallet: user?.primary_stellar_address || user?.walletAddress || '',
     image_url: '',
     images: [],
     units: [
@@ -222,8 +222,8 @@ export default function LandlordPropertiesView() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!formData.name.trim() || !formData.address.trim() || !formData.receiving_wallet.trim()) {
-      alert('Please fill in Property Name, Address, and Receiving Stellar Wallet.');
+    if (!formData.name.trim() || !formData.address.trim()) {
+      alert('Please fill in Property Name and Address.');
       return;
     }
     setSubmitting(true);
@@ -242,7 +242,7 @@ export default function LandlordPropertiesView() {
         address: '',
         city: 'Nairobi',
         country: 'Kenya',
-        receiving_wallet: user?.walletAddress || 'GC2R34KLSLB2UMOOTPAJ7PGJUHVPYVP77DR27DZCD5CWRD3K7MQOEKLT',
+        receiving_wallet: user?.primary_stellar_address || user?.walletAddress || '',
         image_url: '',
         images: [],
         units: [
@@ -658,16 +658,24 @@ export default function LandlordPropertiesView() {
 
               {/* Receiving Stellar Wallet */}
               <div>
-                <label className="block font-bold text-gray-700 mb-1">
-                  Stellar Receiving Wallet (Testnet G... Address) *
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block font-bold text-gray-700">
+                    Stellar Receiving Wallet (Owner Payout Address)
+                  </label>
+                  <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full">
+                    Auto-synced with Owner Wallet
+                  </span>
+                </div>
                 <input
                   type="text"
-                  required
+                  placeholder="Auto-retrieved from owner wallet (or custom G... address)"
                   value={formData.receiving_wallet}
                   onChange={(e) => setFormData({ ...formData, receiving_wallet: e.target.value })}
                   className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 focus:border-[#0A4F4E] focus:ring-2 focus:ring-[#0A4F4E]/20 outline-none text-xs font-mono text-gray-900 font-semibold"
                 />
+                <p className="text-[11px] text-gray-400 mt-1">
+                  Automatically defaults to your verified owner wallet. If you update your wallet or an admin reassigns the property, obligations auto-sync to the current owner.
+                </p>
               </div>
 
               {/* Units Section */}

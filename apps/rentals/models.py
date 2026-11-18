@@ -225,14 +225,46 @@ class Property(TimestampedBaseModel):
         ordering = ['-created_at']
         verbose_name_plural = 'Properties'
 
+    @property
+    def owner_wallet(self):
+        """
+        Dynamically retrieves the property owner's current primary Stellar wallet.
+        If owner updates their wallet or admin changes the landlord, this dynamically
+        reflects the current owner's wallet without manual intervention.
+        """
+        if self.landlord and getattr(self.landlord, 'primary_stellar_address', None):
+            return self.landlord.primary_stellar_address
+        return self.receiving_wallet or getattr(settings, 'STELLAR_SERVER_PUBLIC_KEY', 'GC2R34KLSLB2UMOOTPAJ7PGJUHVPYVP77DR27DZCD5CWRD3K7MQOEKLT')
+
     def save(self, *args, **kwargs):
-        if not self.receiving_wallet and self.landlord and getattr(self.landlord, 'primary_stellar_address', None):
+        # Automatically retrieve and sync with owner's active wallet
+        if self.landlord and getattr(self.landlord, 'primary_stellar_address', None):
             self.receiving_wallet = self.landlord.primary_stellar_address
-        if not self.receiving_wallet:
+        elif not self.receiving_wallet:
             self.receiving_wallet = getattr(settings, 'STELLAR_SERVER_PUBLIC_KEY', 'GC2R34KLSLB2UMOOTPAJ7PGJUHVPYVP77DR27DZCD5CWRD3K7MQOEKLT')
+
         if self.image_url and (not self.images or len(self.images) == 0):
             self.images = [self.image_url]
+
         super().save(*args, **kwargs)
+
+        # Synchronize active/unpaid obligations for this property with current owner & wallet
+        if self.id:
+            try:
+                RentObligation.objects.filter(
+                    property=self,
+                    status__in=[
+                        RentObligation.Status.UPCOMING,
+                        RentObligation.Status.UNPAID,
+                        RentObligation.Status.PARTIALLY_PAID,
+                        RentObligation.Status.OVERDUE,
+                    ]
+                ).update(
+                    landlord=self.landlord,
+                    receiving_wallet=self.receiving_wallet
+                )
+            except Exception:
+                pass
 
     def __str__(self):
         return f"{self.name} ({self.city}) - Landlord: {self.landlord.email}"
@@ -479,7 +511,7 @@ class RentalSchedule(TimestampedBaseModel):
                     outstanding_balance_usdc=self.rent_amount_usdc,
                     asset_code=self.asset_code,
                     asset_issuer=self.asset_issuer,
-                    receiving_wallet=self.receiving_wallet,
+                    receiving_wallet=getattr(self.property, 'owner_wallet', self.receiving_wallet),
                     payment_memo=payment_memo,
                 )
                 obligation.recalculate(save=False)
@@ -600,6 +632,20 @@ class RentObligation(TimestampedBaseModel):
         if save and self.pk:
             self.save(update_fields=['amount_paid_usdc', 'outstanding_balance_usdc', 'status', 'updated_at'])
 
+    @builtins.property
+    def owner_receiving_wallet(self):
+        """
+        Dynamically retrieves the current property owner's primary wallet.
+        Always reflects the active owner's wallet even if the owner changes or updates their wallet.
+        """
+        if self.property and self.property.landlord and getattr(self.property.landlord, 'primary_stellar_address', None):
+            return self.property.landlord.primary_stellar_address
+        if self.landlord and getattr(self.landlord, 'primary_stellar_address', None):
+            return self.landlord.primary_stellar_address
+        if self.property and getattr(self.property, 'owner_wallet', None):
+            return self.property.owner_wallet
+        return self.receiving_wallet or getattr(settings, 'STELLAR_SERVER_PUBLIC_KEY', 'GC2R34KLSLB2UMOOTPAJ7PGJUHVPYVP77DR27DZCD5CWRD3K7MQOEKLT')
+
     def save(self, *args, **kwargs):
         if not self.obligation_reference:
             year = self.due_date.year if self.due_date else timezone.now().year
@@ -612,6 +658,9 @@ class RentObligation(TimestampedBaseModel):
                 Decimal('0.0000000'),
                 self.amount_due_usdc - (self.amount_paid_usdc or Decimal('0.0000000'))
             )
+        # Always align receiving_wallet with owner's active wallet if available
+        if not self.receiving_wallet or (self.property and self.property.landlord and getattr(self.property.landlord, 'primary_stellar_address', None)):
+            self.receiving_wallet = self.owner_receiving_wallet
         super().save(*args, **kwargs)
 
     @builtins.property

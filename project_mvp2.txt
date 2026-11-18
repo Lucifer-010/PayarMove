@@ -1,0 +1,459 @@
+PayarMove – Second Brief
+Rental Schedule Management, Stellar Payment Reconciliation & Landlord–Tenant Dashboard Improvements
+Project Duration: 30 Days
+Blockchain: Stellar Testnet
+Project Type: Existing MVP Enhancement
+Focus: Rental Obligations, Payment Verification, Reconciliation, Dashboard Improvements & User Validation
+1. Project Overview
+PayarMove is a Stellar-powered rental payment platform designed to help property managers, landlords, and tenants manage rental obligations and payments through a transparent digital system.
+The first development phase established the foundation for rental payment workflows and Stellar integration.
+The second tranche focuses on expanding PayarMove beyond individual payment transactions into a more complete rental payment management experience.
+Property managers will be able to assign tenants to properties, create rental schedules, define payment amounts and due dates, and monitor recurring rent obligations.
+Tenants will be able to view upcoming rent, make payments, track outstanding balances, and download receipts.
+The platform will also integrate Stellar transaction verification and reconciliation to match confirmed payments to the correct rental obligations, support partial payments, prevent duplicate credits, and update outstanding balances automatically.
+Primary objective: Deliver an enhanced PayarMove MVP that supports recurring rental obligations, reliable Stellar payment reconciliation, accurate outstanding balances, and functional landlord and tenant dashboards, validated with at least 10 users.
+2. Core Development Deliverables
+Deliverable 1: Rental Schedule & Payment Management
+Objective: Implement structured rental schedules that allow landlords and property managers to manage recurring rent obligations, due dates, tenant assignments, partial payments, and outstanding balances.
+Feature
+Development requirements
+Property records
+Create and manage rental property records
+Tenant assignments
+Assign tenants to properties or rental units
+Rental schedules
+Configure rental amounts and due dates
+Recurring obligations
+Automatically generate rent obligations based on configured schedules
+Payment requests
+Generate payment requests for individual rent obligations
+Partial payments
+Allow multiple payments toward one rental obligation
+Outstanding balances
+Calculate remaining rent after verified payments
+Due-date tracking
+Track upcoming and overdue obligations
+Payment status
+Display Unpaid, Partially Paid, Paid, and Overdue
+Rental history
+Maintain a record of generated rent obligations
+Payment references
+Associate each payment request with a unique rental obligation
+
+A. Rental schedule configuration
+Landlords should be able to configure:
+Property name and rental unit.
+Assigned tenant.
+Rent amount and asset.
+Payment frequency, such as monthly or quarterly.
+First payment date.
+Subsequent due dates.
+Rental schedule start and end dates.
+Payment receiving wallet.
+Payment request reference.
+B. Recurring rent obligations
+The system should automatically generate rental obligations based on the configured schedule.
+For example, a tenant assigned to a property with monthly rent of 300 USDC would have a separate payment obligation generated for each rental period.
+Each obligation should have its own unique reference, due date, amount due, amount paid, outstanding balance, and payment status.
+C. Rental payment lifecycle
+Recommended rent status definitions
+Status
+Meaning
+Upcoming
+Rent obligation generated but not yet due
+Unpaid
+Rent due with no verified payments
+Partially Paid
+Some rent has been paid, but a balance remains
+Paid
+Full rent obligation settled
+Overdue
+Due date passed with an outstanding balance
+
+Overdue status should be calculated independently of payment progress. For example, a tenant may have made a partial payment and still have an overdue balance.
+Partial payment example
+A tenant has a monthly rental obligation of 300 USDC.
+Payment activity
+Amount
+Outstanding
+Monthly rent due
+300 USDC
+300 USDC
+First verified payment
+100 USDC
+200 USDC
+Second verified payment
+150 USDC
+50 USDC
+Final verified payment
+50 USDC
+0 USDC
+
+The system must update the balance only after each payment has been verified on Stellar Testnet.
+Why this matters: Enables property managers to manage complete rental obligations rather than isolated transactions, improving payment planning and rent collection visibility.
+Acceptance criteria: A landlord can create a rental schedule, assign a tenant, generate recurring rent obligations, and track full or partial payments with accurate balances and due-date statuses.
+Deliverable 2: Stellar Payment Verification & Reconciliation
+Objective: Implement automated Stellar transaction monitoring to verify rental payments and reconcile them against the correct tenant, rental obligation, asset, recipient, and amount.
+Feature
+Development requirements
+Transaction monitoring
+Monitor relevant Stellar Testnet payments
+Tenant verification
+Match payments to the correct tenant or assigned payment reference
+Recipient validation
+Confirm payment was sent to the registered receiving wallet
+Asset verification
+Verify the expected Stellar asset
+Amount verification
+Confirm the amount received
+Obligation matching
+Match transactions to the correct rental obligation
+Partial reconciliation
+Apply verified partial payments to outstanding balances
+Full reconciliation
+Mark obligations paid when the verified total reaches the amount due
+Duplicate prevention
+Prevent the same payment operation from being credited twice
+Outstanding balance updates
+Recalculate remaining rent automatically
+Unmatched payments
+Flag transfers that cannot be reliably assigned
+Transaction history
+Store verified payment references and transaction hashes
+
+Payment reconciliation rules
+Confirm the payment exists on Stellar Testnet.
+Verify that the transaction succeeded.
+Confirm the recipient matches the landlord's registered wallet.
+Validate the payment asset.
+Match the payment to a valid tenant and rental obligation.
+Verify the payment amount.
+Credit only confirmed payments.
+Allow multiple valid partial payments toward the same obligation.
+Prevent the same payment operation from being credited more than once.
+Flag unmatched or excess payments for review.
+Recalculate the outstanding balance after every verified credit.
+Preserve reconciliation records when the monitoring service restarts.
+Implementation consideration: The system should use a unique obligation reference or another reliable matching mechanism. It must not assume that the wallet sending funds always belongs to the tenant, since a third party may pay on a tenant's behalf.
+For transactions containing multiple payment operations, reconciliation should identify individual payment operations rather than treating the transaction hash alone as a unique payment.
+Reconciliation formula
+
+OutstandingRent=(0,AmountDue-VerifiedPayments)
+An obligation is fully paid when verified credited payments equal its amount due. Excess funds should be flagged rather than silently applied to unrelated rental periods.
+Why this matters: Reduces manual rent reconciliation, prevents duplicate credits, and ensures landlords and tenants see accurate payment balances.
+Acceptance criteria: The system correctly verifies and matches Stellar Testnet rental payments, reconciles partial and full payments, prevents duplicate credits, and updates outstanding balances automatically.
+Deliverable 3: Enhanced Landlord & Tenant Dashboards
+Objective: Improve PayarMove's existing dashboards to give landlords better rental collection visibility and tenants a clearer view of rent obligations, payments, and receipts.
+A. Landlord dashboard
+Feature
+Development requirements
+Property overview
+Display managed properties and rental units
+Tenant management
+View tenants assigned to each property
+Rental schedules
+Create and monitor recurring rental obligations
+Collection overview
+Show rent due, collected, and outstanding
+Payment history
+Display verified rent payments
+Overdue monitoring
+Identify tenants with overdue obligations
+Payment details
+View amount, asset, date, status, and transaction hash
+Search and filters
+Filter by property, tenant, due date, and payment status
+Reconciliation
+View matched and unmatched rental payments
+
+Landlord dashboard preview
+PayarMove landlord dashboard
+Sample data
+Rent due
+3,500 USDC
+Rent collected
+2,650 USDC
+Outstanding
+850 USDC
+Active tenants
+12
+Rental collection overview
+Tenant
+Outstanding
+Status
+Tenant A
+0 USDC
+Paid
+Tenant B
+100 USDC
+Partial
+Tenant C
+300 USDC
+Overdue
+Tenant D
+150 USDC
+Upcoming
+
+B. Tenant dashboard
+Feature
+Development requirements
+Rent overview
+Display current and upcoming rent obligations
+Outstanding balance
+Show remaining amount due
+Payment schedule
+Display due dates and rental periods
+Partial payment
+Allow eligible partial payments
+Payment history
+Show verified rent transactions
+Payment status
+Display unpaid, partially paid, paid, and overdue states
+Receipts
+Generate downloadable payment receipts
+Transaction details
+Display payment references and Stellar explorer links
+Wallet integration
+Support Stellar Testnet rental payments
+
+Tenant dashboard preview
+My rent
+Sample account
+Outstanding rent
+200 USDC
+Monthly rent: 300 USDC
+Amount paid
+100 USDC
+Remaining balance
+200 USDC
+Payment status
+Partially Paid
+Recent payment
+Rent payment
+Verified on Stellar Testnet
+100 USDC
+Receipt requirements
+Downloadable receipts should include:
+Receipt reference.
+Tenant identifier.
+Property or rental unit.
+Rental period.
+Payment amount and asset.
+Date of confirmed payment.
+Stellar transaction hash.
+Outstanding balance after payment.
+Payment verification status.
+Receipts should only be marked as confirmed after the corresponding blockchain payment has been verified.
+User validation
+At least 10 landlords, property managers, tenants, or representative target users should test the enhanced PayarMove workflows.
+Why this matters: Makes PayarMove more useful for everyday rental management by improving collection tracking, tenant visibility, and payment recordkeeping.
+Acceptance criteria: Landlords can manage properties, tenants, schedules, and collection records. Tenants can view outstanding rent, make partial payments, access verified payment history, and download receipts. At least 10 users must complete documented testing.
+3. UI/UX Designer Brief
+The second tranche should enhance the existing PayarMove design, focusing on rental schedules, payment tracking, and simple landlord–tenant workflows.
+Design direction: Modern property-management fintech interface, professional, mobile-friendly, and easy to navigate.
+Required screens
+Property Management Dashboard — Clean SaaS UI for Real Estate An by Nasir Uddin on Dribbble
+1. Enhanced Landlord Dashboard
+Property overview
+Active tenants
+Rent due and collected
+Outstanding balances
+Overdue obligations
+Recent payments
+Propwise - Calendar Page Property Management Web App Saas by Keitoto on Dribbble
+2. Rental Schedule Management
+Property selection
+Tenant assignment
+Rental amount
+Payment frequency
+Due dates
+Recurring obligations
+Schedule status
+New Product Release: Landlord Property Management
+3. Tenant Dashboard
+Current rent
+Outstanding balance
+Upcoming due dates
+Pay Rent button
+Partial payment option
+Payment history
+Know Who Paid, Who Owes, and What to Follow Up Today | RentalDesk
+4. Payment Reconciliation
+Verified payments
+Matched rental obligations
+Partial payment records
+Unmatched transactions
+Outstanding balances
+Transaction references
+Pay Rent using Housing mobile App – Review – CardExpert
+5. Payment History & Receipts
+Rental period
+Payment amount
+Date
+Transaction hash
+Payment status
+Download Receipt
+Visual references are illustrative and should be adapted to PayarMove's existing branding and product architecture.
+Designer deliverables
+Updated Figma designs for landlord and tenant dashboards.
+Rental schedule and recurring obligation screens.
+Partial payment and outstanding balance interfaces.
+Payment reconciliation and transaction history screens.
+Downloadable receipt layout.
+Responsive desktop and mobile designs.
+Interactive prototype and developer handoff.
+4. Developer Responsibilities
+Frontend Developer
+Enhance landlord and tenant dashboards.
+Implement rental schedule creation and management.
+Build tenant assignment interfaces.
+Display recurring rent obligations.
+Implement partial payment interfaces.
+Show outstanding balances and overdue statuses.
+Integrate Stellar wallet payments.
+Display verified transaction history.
+Implement downloadable receipts.
+Improve search, filtering, and responsive layouts.
+Backend Developer
+Implement property, unit, and tenant records.
+Build recurring rent obligation generation.
+Generate unique payment request references.
+Implement rental schedule management APIs.
+Store rent obligations and payment allocations.
+Calculate outstanding balances.
+Track overdue obligations.
+Integrate verified transaction records.
+Prevent duplicate payment credits.
+Generate downloadable payment receipts.
+Provide landlord and tenant dashboard APIs.
+Stellar Integration Developer
+Implement Stellar Testnet payment monitoring.
+Verify recipient wallet, asset, and amount.
+Match transactions to tenant obligations.
+Support partial payment reconciliation.
+Prevent duplicate payment credits.
+Handle unmatched or excess payments.
+Verify transaction hashes.
+Implement transaction monitoring and reconciliation tests.
+A new Soroban smart contract is not required unless PayarMove's existing rental payment infrastructure specifically depends on one. The key blockchain deliverable is reliable Stellar payment verification and reconciliation.
+5. Interactive Rent Payment Calculator
+This example illustrates how partial payments should update a tenant's outstanding rent.
+Rental balance preview
+Sample calculation
+Rent due (USDC)
+Already paid (USDC)
+New payment (USDC)
+Due date11/01/26
+Reference date for overdue calculation11/13/26
+Current outstanding
+200 USDC
+After simulated payment
+150 USDC
+Resulting rental status
+Overdue
+Copy calculationThis calculator does not initiate payments or verify Stellar transactions. In the actual MVP, balances must update only after payment verification.
+6. Testing & Validation
+#
+Test scenario
+Expected result
+1
+Create rental schedule
+Schedule saved
+2
+Assign tenant to rental unit
+Tenant linked correctly
+3
+Generate recurring rent obligation
+Unique obligation created
+4
+Create payment request
+Correct amount and reference
+5
+Make full Stellar payment
+Obligation marked Paid
+6
+Make partial payment
+Outstanding balance reduced
+7
+Make multiple partial payments
+Correct cumulative balance
+8
+Payment with incorrect recipient
+Rejected or flagged
+9
+Payment with incorrect asset
+Rejected or flagged
+10
+Duplicate payment processing
+No duplicate credit
+11
+Payment without matching obligation
+Flagged
+12
+Due date passes with balance
+Marked Overdue
+13
+Overpayment
+Excess flagged
+14
+Generate receipt
+Correct verified payment details
+15
+Transaction monitoring restarts
+No missed or duplicate credits
+16
+At least 10 users complete testing
+Feedback documented
+
+Required testing evidence
+Rental schedule and tenant assignment screenshots.
+Generated recurring rent obligations.
+Verified Stellar Testnet payment hashes.
+Partial payment reconciliation examples.
+Duplicate payment prevention test results.
+Outstanding balance and overdue status tests.
+Downloadable receipt samples.
+User testing report covering at least 10 participants.
+Critical bug-fix summary.
+The following are excluded from this 30-day tranche:
+Stellar Mainnet deployment.
+Real-value rental payments.
+Fiat settlement and bank transfers.
+Mobile Money integrations.
+Fiat on/off ramps.
+Automated legal tenancy agreements.
+Property ownership verification.
+Advanced property maintenance management.
+Tenant screening and credit scoring.
+Eviction or legal dispute management.
+Automated rent financing or lending.
+Native Android or iOS applications.
+Independent smart contract security audits.
+Large-scale commercial deployment.
+Ongoing maintenance and post-delivery support.
+10. Final Delivery Checklist
+Second-tranche completion tracker
+0 / 15 completed
+Review existing PayarMove MVP and payment architecture
+Complete enhanced landlord and tenant Figma designs
+Implement property and tenant assignment management
+Implement rental schedule configuration
+Implement recurring rent obligation generation
+Generate unique rental payment requests
+Support full and partial rental payments
+Implement Stellar transaction monitoring and verification
+Match payments to the correct rental obligations
+Prevent duplicate credits and flag unmatched payments
+Implement automatic outstanding balance updates
+Implement overdue status tracking
+Enhance landlord and tenant dashboards
+Implement downloadable verified payment receipts
+Conduct testing with at least 10 users and submit technical evidence
+Copy checklist
+11. Definition of Done
+The PayarMove second tranche will be considered complete when landlords and property managers can create rental schedules, assign tenants, generate recurring rent obligations, and monitor rental collections.
+Tenants must be able to view their rent schedules, make full or partial Stellar Testnet payments, track outstanding balances, and download verified payment receipts.
+The system must accurately verify rental payments, reconcile them to the correct obligations, prevent duplicate credits, and automatically update balances and overdue statuses.
+At least 10 users must complete structured testing, with feedback, transaction evidence, and critical fixes documented.
+Development priority: Rental schedules and tenant assignments → recurring payment obligations → Stellar payment verification and reconciliation → enhanced dashboards and receipts → user validation. The focus is to transform PayarMove from a basic rental payment experience into a practical rental obligation management platform.
+

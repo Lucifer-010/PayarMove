@@ -15,8 +15,13 @@ if [ "$RUN_MIGRATIONS" = "true" ] || { [ "$RUN_MIGRATIONS" != "false" ] && { [ "
   echo "Collecting static files for WhiteNoise..."
   python manage.py collectstatic --noinput || true
 
-  echo "Seeding initial platform data..."
-  python manage.py seed_data || true
+  # Run seed_data ONLY if explicitly requested via SEED_DATA=true
+  if [ "$SEED_DATA" = "true" ]; then
+    echo "SEED_DATA=true: seeding platform data..."
+    python manage.py seed_data || true
+  else
+    echo "Skipping automatic seed_data: database state and user data are preserved across re-deployments."
+  fi
 fi
 
 exec "$@"

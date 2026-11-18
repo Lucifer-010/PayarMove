@@ -393,14 +393,15 @@ class PropertyViewSet(viewsets.ModelViewSet):
         units_data = self.request.data.get('units', [])
         if isinstance(units_data, list):
             for u in units_data:
+                rent = u.get('rent_amount_usdc') or u.get('monthly_rent_usdc') or 500
+                deposit = u.get('deposit_amount_usdc') or u.get('security_deposit_usdc') or rent
                 RentalUnit.objects.create(
                     property=prop,
                     unit_number=u.get('unit_number', '1A'),
                     bedrooms=u.get('bedrooms', 1),
-                    bathrooms=u.get('bathrooms', 1),
-                    monthly_rent_usdc=u.get('monthly_rent_usdc', 500),
-                    security_deposit_usdc=u.get('security_deposit_usdc', 0),
-                    description=u.get('description', '')
+                    bathrooms=Decimal(str(u.get('bathrooms', 1))),
+                    rent_amount_usdc=Decimal(str(rent)),
+                    deposit_amount_usdc=Decimal(str(deposit))
                 )
 
     @extend_schema(

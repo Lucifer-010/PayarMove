@@ -11,7 +11,26 @@ from apps.payouts.models import HostPayout
 class Command(BaseCommand):
     help = 'Populate the PayarMove database with comprehensive test data (users, vehicles, rentals, escrow, payouts)'
 
+    def add_arguments(self, parser):
+        parser.add_argument(
+            '--force',
+            action='store_true',
+            help='Force re-seeding even if database already has data',
+        )
+
     def handle(self, *args, **options):
+        # Prevent re-populating if database already contains users or properties
+        has_existing_data = (
+            User.objects.filter(role__in=[User.Role.ADMIN, User.Role.LANDLORD, User.Role.HOST]).count() > 1
+            or Vehicle.objects.exists()
+        )
+        if has_existing_data and not options.get('force'):
+            self.stdout.write(self.style.WARNING(
+                "Database already contains active data. Skipping seed_data to prevent resetting or repopulating. "
+                "Pass --force if you intentionally wish to run seed_data."
+            ))
+            return
+
         self.stdout.write(self.style.NOTICE('Starting PayarMove database seeding...'))
 
         # 1. Create Test Users

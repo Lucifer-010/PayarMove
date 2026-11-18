@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   X,
   CreditCard,
@@ -11,7 +11,6 @@ import {
   Loader2,
   ArrowRight,
   ShieldCheck,
-  Send,
   Building,
   RefreshCw,
 } from 'lucide-react';
@@ -20,7 +19,7 @@ import { useApp } from '../../context/AppContext';
 import { connectWallet, signTransaction, getConnectedAddress } from '../../services/stellarWallet';
 
 export default function TenantPayModal({ isOpen, onClose, obligation, onSuccess }) {
-  const { connectedWallet, handleConnectWallet } = useApp();
+  const { connectedWallet } = useApp();
 
   const [payType, setPayType] = useState('full'); // 'full' | 'partial'
   const [customAmount, setCustomAmount] = useState('');
@@ -36,8 +35,10 @@ export default function TenantPayModal({ isOpen, onClose, obligation, onSuccess 
 
   const outstanding = Number(obligation?.outstanding_balance_usdc || obligation?.amount_due_usdc || 0);
 
+  // Prevent background re-renders from resetting the modal while it is open
+  const wasOpenRef = useRef(false);
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && !wasOpenRef.current) {
       setStep('select_amount');
       setPayType('full');
       setCustomAmount('');
@@ -47,7 +48,8 @@ export default function TenantPayModal({ isOpen, onClose, obligation, onSuccess 
       setReconciliationResult(null);
       setPaymentRequest(null);
     }
-  }, [isOpen, obligation]);
+    wasOpenRef.current = isOpen;
+  }, [isOpen]);
 
   if (!isOpen || !obligation) return null;
 
@@ -77,26 +79,41 @@ export default function TenantPayModal({ isOpen, onClose, obligation, onSuccess 
 
     try {
       // 1. Get or request connected wallet address
-      setSigningStatus('Connecting to Freighter wallet...');
+      setSigningStatus('Connecting to Freighter extension...');
       let address = connectedWallet?.address || getConnectedAddress();
 
-      // If not yet connected, request access from Freighter directly
-      if (!address) {
-        const connResult = await connectWallet('freighter', false);
-        if (!connResult.success || !connResult.address) {
-          throw new Error(
-            connResult.error ||
-              'Freighter wallet connection was cancelled. Ensure Freighter browser extension is installed and unlocked, or choose to verify with transaction hash below.'
-          );
-        }
-        address = connResult.address;
-        if (handleConnectWallet) {
-          handleConnectWallet('freighter');
+      if (typeof window !== 'undefined' && window.freighterApi) {
+        try {
+          if (typeof window.freighterApi.requestAccess === 'function') {
+            const acc = await window.freighterApi.requestAccess();
+            if (typeof acc === 'string') address = acc;
+            else if (acc?.address) address = acc.address;
+          }
+          if (!address && typeof window.freighterApi.getPublicKey === 'function') {
+            const pk = await window.freighterApi.getPublicKey();
+            if (typeof pk === 'string') address = pk;
+            else if (pk?.address) address = pk.address;
+          }
+        } catch (fErr) {
+          console.warn('Direct Freighter access check:', fErr);
         }
       }
 
+      if (!address) {
+        const connResult = await connectWallet('freighter', false);
+        if (connResult?.address) {
+          address = connResult.address;
+        }
+      }
+
+      if (!address) {
+        throw new Error(
+          'Freighter wallet extension was not detected or permission was not granted. Please install or unlock Freighter, or choose "Verify payment by entering transaction hash" below.'
+        );
+      }
+
       // 2. Request backend to create payment request and build Stellar transaction XDR
-      setSigningStatus('Preparing transaction: sending to property owner address...');
+      setSigningStatus('Preparing payment transaction for property owner address...');
       const reqRes = await api.obligations.createPaymentRequest(obligation.id, targetAmount, address);
       setPaymentRequest(reqRes);
 
@@ -115,7 +132,7 @@ export default function TenantPayModal({ isOpen, onClose, obligation, onSuccess 
 
       // 3. TRIGGER WALLET SIGNING POPUP!
       // This actively invokes Freighter extension popup (window.freighterApi.signTransaction)
-      setSigningStatus('Awaiting signature in Freighter popup... Please approve the transaction to send payment to the property owner.');
+      setSigningStatus('Opening Freighter wallet popup... Please approve the transaction to send payment to the property owner.');
       const signResult = await signTransaction(txXdr, networkPassphrase);
 
       if (!signResult.success) {
@@ -477,7 +494,7 @@ export default function TenantPayModal({ isOpen, onClose, obligation, onSuccess 
             <div className="flex gap-2">
               <button
                 onClick={() => setStep('select_amount')}
-                className="py-3 px-4 rounded-xl border border-gray-200 hover:bg-gray-100 font-bold text-xs text-gray-700 transition"
+                className="py-3 px-4 rounded-xl border border-gray-200 hover:bg-gray-100 font-bold text-xs text-gray-700 transition cursor-pointer"
               >
                 Back
               </button>
@@ -518,15 +535,21 @@ export default function TenantPayModal({ isOpen, onClose, obligation, onSuccess 
             <div className="p-4 rounded-2xl bg-gray-50 border border-gray-200 text-left space-y-2 mb-6 text-xs">
               <div className="flex justify-between">
                 <span className="text-gray-500">Amount Paid:</span>
-                <strong className="text-emerald-700 font-mono text-sm">${reconciliationResult?.amount_paid_usdc || targetAmount} USDC</strong>
+                <strong className="text-emerald-700 font-mono text-sm">
+                  ${Number(reconciliationResult?.amount_paid_usdc || targetAmount || 0).toFixed(2)} USDC
+                </strong>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-500">Remaining Balance:</span>
-                <strong className="text-gray-900 font-mono text-sm">${reconciliationResult?.remaining_balance_usdc ?? 0} USDC</strong>
+                <strong className="text-gray-900 font-mono text-sm">
+                  ${Number(reconciliationResult?.remaining_balance_usdc ?? 0).toFixed(2)} USDC
+                </strong>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-500">Reconciliation Status:</span>
-                <span className="font-extrabold text-[#0A4F4E] uppercase">{reconciliationResult?.status || 'CONFIRMED'}</span>
+                <span className="font-extrabold text-[#0A4F4E] uppercase">
+                  {reconciliationResult?.status || 'CONFIRMED'}
+                </span>
               </div>
               {reconciliationResult?.tx_hash && (
                 <div className="pt-2 border-t border-gray-200">
@@ -553,14 +576,14 @@ export default function TenantPayModal({ isOpen, onClose, obligation, onSuccess 
           </div>
         )}
 
-        {/* STEP 6: Failed */}
+        {/* STEP 6: Failed / Rejected */}
         {step === 'failed' && (
           <div className="text-center py-4">
             <div className="w-14 h-14 rounded-full bg-rose-100 text-rose-700 flex items-center justify-center mx-auto mb-4">
               <AlertCircle className="w-8 h-8" />
             </div>
-            <h3 className="text-xl font-black text-gray-950 mb-1">Payment / Verification Failed</h3>
-            <p className="text-xs text-rose-600 mb-6 max-w-sm mx-auto">
+            <h3 className="text-xl font-black text-gray-950 mb-1">Payment / Signing Issue</h3>
+            <p className="text-xs text-rose-600 mb-6 max-w-sm mx-auto leading-relaxed">
               {errorMsg || 'Could not verify or sign the transaction on Stellar Testnet.'}
             </p>
 
@@ -586,7 +609,7 @@ export default function TenantPayModal({ isOpen, onClose, obligation, onSuccess 
                 onClick={onClose}
                 className="w-full py-2.5 px-4 rounded-xl text-gray-400 hover:text-gray-600 font-semibold text-xs transition cursor-pointer"
               >
-                Cancel
+                Close
               </button>
             </div>
           </div>

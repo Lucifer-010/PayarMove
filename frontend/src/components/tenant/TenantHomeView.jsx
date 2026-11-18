@@ -395,7 +395,7 @@ export default function TenantHomeView() {
 
                     <div className="flex items-center gap-3">
                       <span className="font-mono text-xs font-extrabold text-emerald-700">
-                        ${rec.amount_paid || rec.amount_paid_usdc || rec.amount} USDC
+                        ${Number(rec.amount_paid || rec.amount_paid_usdc || rec.amount || 0).toFixed(2)} USDC
                       </span>
                       {rec.id && (
                         <button

@@ -185,10 +185,10 @@ export default function TenantHistoryReceiptsView({ onBack }) {
                 <div className="flex items-center justify-between sm:justify-end gap-3 pt-3 sm:pt-0 border-t sm:border-t-0 border-gray-100">
                   <div className="text-left sm:text-right">
                     <div className="text-base font-extrabold text-emerald-700 font-mono">
-                      ${receipt.amount_paid_usdc} USDC
+                      ${Number(receipt.amount_paid || receipt.amount_paid_usdc || 0).toFixed(2)} USDC
                     </div>
                     <div className="text-[11px] text-gray-400 font-semibold">
-                      Bal after: ${receipt.outstanding_balance_after_payment_usdc ?? 0}
+                      Bal after: ${Number(receipt.outstanding_balance_after || receipt.outstanding_balance_after_payment_usdc || 0).toFixed(2)}
                     </div>
                   </div>
 
@@ -260,25 +260,29 @@ export default function TenantHistoryReceiptsView({ onBack }) {
               </div>
               <div className="flex justify-between py-1 border-b border-gray-100">
                 <span className="text-gray-400 font-semibold">Amount Paid</span>
-                <span className="font-extrabold text-emerald-700 text-sm font-mono">${selectedReceipt.amount_paid_usdc} USDC</span>
+                <span className="font-extrabold text-emerald-700 text-sm font-mono">
+                  ${Number(selectedReceipt.amount_paid || selectedReceipt.amount_paid_usdc || 0).toFixed(2)} USDC
+                </span>
               </div>
               <div className="flex justify-between py-1 border-b border-gray-100">
                 <span className="text-gray-400 font-semibold">Outstanding Balance After</span>
-                <span className="font-bold text-gray-900 font-mono">${selectedReceipt.outstanding_balance_after_payment_usdc ?? 0} USDC</span>
+                <span className="font-bold text-gray-900 font-mono">
+                  ${Number(selectedReceipt.outstanding_balance_after || selectedReceipt.outstanding_balance_after_payment_usdc || 0).toFixed(2)} USDC
+                </span>
               </div>
               <div className="flex justify-between py-1 border-b border-gray-100">
                 <span className="text-gray-400 font-semibold">Verification Status</span>
                 <span className="font-bold text-emerald-700 uppercase">{selectedReceipt.verification_status || 'VERIFIED'}</span>
               </div>
 
-              {selectedReceipt.stellar_transaction_hash && (
+              {(selectedReceipt.stellar_tx_hash || selectedReceipt.stellar_transaction_hash) && (
                 <div className="pt-2">
                   <span className="text-gray-400 font-semibold block mb-1">Stellar Testnet Transaction Hash</span>
                   <div className="font-mono text-[11px] text-gray-800 break-all bg-gray-50 p-2.5 rounded-xl border border-gray-200">
-                    {selectedReceipt.stellar_transaction_hash}
+                    {selectedReceipt.stellar_tx_hash || selectedReceipt.stellar_transaction_hash}
                   </div>
                   <a
-                    href={`https://stellar.expert/explorer/testnet/tx/${selectedReceipt.stellar_transaction_hash}`}
+                    href={`https://stellar.expert/explorer/testnet/tx/${selectedReceipt.stellar_tx_hash || selectedReceipt.stellar_transaction_hash}`}
                     target="_blank"
                     rel="noreferrer"
                     className="inline-flex items-center gap-1 text-[11px] text-[#0A4F4E] hover:underline font-bold mt-1.5"

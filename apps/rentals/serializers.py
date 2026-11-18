@@ -397,15 +397,21 @@ class RentReceiptSerializer(serializers.ModelSerializer):
     obligation_reference = serializers.CharField(source='obligation.obligation_reference', read_only=True)
     payment_reference = serializers.CharField(source='payment.payment_reference', read_only=True)
     download_url = serializers.SerializerMethodField()
+    amount_paid_usdc = serializers.DecimalField(source='amount_paid', max_digits=18, decimal_places=7, read_only=True)
+    outstanding_balance_after_payment_usdc = serializers.DecimalField(source='outstanding_balance_after', max_digits=18, decimal_places=7, read_only=True)
+    billing_period = serializers.CharField(source='rental_period', read_only=True)
+    receipt_reference = serializers.CharField(source='receipt_number', read_only=True)
+    stellar_transaction_hash = serializers.CharField(source='stellar_tx_hash', read_only=True)
 
     class Meta:
         model = RentReceipt
         fields = [
-            'id', 'receipt_number', 'payment', 'payment_reference',
+            'id', 'receipt_number', 'receipt_reference', 'payment', 'payment_reference',
             'obligation', 'obligation_reference', 'tenant', 'tenant_email',
-            'property_name', 'unit_number', 'rental_period',
-            'amount_paid', 'asset_code', 'payment_date',
-            'stellar_tx_hash', 'stellar_op_id', 'outstanding_balance_after',
+            'property_name', 'unit_number', 'rental_period', 'billing_period',
+            'amount_paid', 'amount_paid_usdc', 'asset_code', 'payment_date',
+            'stellar_tx_hash', 'stellar_transaction_hash', 'stellar_op_id',
+            'outstanding_balance_after', 'outstanding_balance_after_payment_usdc',
             'verification_status', 'stellar_explorer_url', 'download_url',
             'notes', 'created_at'
         ]

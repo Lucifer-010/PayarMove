@@ -12,6 +12,10 @@ import {
   Check,
   ChevronDown,
   Camera,
+  Building2,
+  Calendar,
+  Users,
+  ShieldCheck,
 } from 'lucide-react';
 import api from '../../services/api';
 
@@ -152,89 +156,154 @@ export default function HostAccountView() {
         <div className="hidden md:grid md:grid-cols-12 gap-8 items-start">
           {/* Left Sidebar */}
           <aside className="md:col-span-4 lg:col-span-3">
-            <div className="bg-white rounded-3xl border border-black/[0.04] p-6 shadow-[0_8px_30px_rgba(0,0,0,0.04)] space-y-6">
-              <nav className="space-y-1 text-xs font-semibold">
-                <button
-                  type="button"
-                  onClick={() => navigateTo('host-dashboard')}
-                  className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-gray-700 hover:bg-gray-50 transition text-left"
-                >
-                  <span className="flex items-center gap-2.5">
-                    <LayoutDashboard className="w-4 h-4 text-gray-400" />
-                    <span>Dashboard</span>
-                  </span>
-                  <ChevronRight className="w-3.5 h-3.5 text-gray-400" />
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => navigateTo('host-payments')}
-                  className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-gray-700 hover:bg-gray-50 transition text-left"
-                >
-                  <span className="flex items-center gap-2.5">
-                    <Receipt className="w-4 h-4 text-gray-400" />
-                    <span>Rental payments</span>
-                  </span>
-                  <ChevronRight className="w-3.5 h-3.5 text-gray-400" />
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => navigateTo('host-vehicles')}
-                  className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-gray-700 hover:bg-gray-50 transition text-left"
-                >
-                  <span className="flex items-center gap-2.5">
-                    <Car className="w-4 h-4 text-gray-400" />
-                    <span>My vehicles</span>
-                  </span>
-                  <ChevronRight className="w-3.5 h-3.5 text-gray-400" />
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setHostAccountTab('wallet');
-                    setWalletModalOpen(true);
-                  }}
-                  style={hostAccountTab === 'wallet' ? { backgroundColor: '#06372d' } : {}}
-                  className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-left transition ${
-                    hostAccountTab === 'wallet' ? 'text-white font-bold shadow-2xs' : 'text-gray-700 hover:bg-gray-50'
-                  }`}
-                >
-                  <span className="flex items-center gap-2.5">
-                    <Wallet className={`w-4 h-4 ${hostAccountTab === 'wallet' ? 'text-white' : 'text-gray-400'}`} />
-                    <span>Payout wallet</span>
-                  </span>
-                  <ChevronRight className={`w-3.5 h-3.5 ${hostAccountTab === 'wallet' ? 'text-white' : 'text-gray-400'}`} />
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setHostAccountTab('profile')}
-                  style={hostAccountTab === 'profile' ? { backgroundColor: '#06372d' } : {}}
-                  className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-left transition ${
-                    hostAccountTab === 'profile' ? 'text-white font-bold shadow-2xs' : 'text-gray-700 hover:bg-gray-50'
-                  }`}
-                >
-                  <span className="flex items-center gap-2.5">
-                    <User className={`w-4 h-4 ${hostAccountTab === 'profile' ? 'text-white' : 'text-gray-400'}`} />
-                    <span>Account</span>
-                  </span>
-                  <ChevronRight className={`w-3.5 h-3.5 ${hostAccountTab === 'profile' ? 'text-white' : 'text-gray-400'}`} />
-                </button>
-
-                <div className="pt-4 border-t border-black/[0.04]">
+            <div className="bg-white rounded-3xl border border-black/[0.04] p-6 shadow-[0_8px_30px_rgba(0,0,0,0.04)] space-y-5">
+              <div>
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider px-3 mb-2">Host Overview</p>
+                <nav className="space-y-1 text-xs font-semibold">
                   <button
-                    onClick={() => {
-                      handleDisconnectWallet();
-                    }}
-                    className="w-full text-xs font-semibold text-gray-500 hover:text-black py-2 px-3 rounded-xl hover:bg-gray-50 transition text-left flex items-center gap-2"
+                    type="button"
+                    onClick={() => navigateTo('host-dashboard')}
+                    className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-gray-700 hover:bg-gray-50 transition text-left"
                   >
-                    <LogOut className="w-4 h-4" />
-                    <span>Log out</span>
+                    <span className="flex items-center gap-2.5">
+                      <LayoutDashboard className="w-4 h-4 text-gray-400" />
+                      <span>Dashboard</span>
+                    </span>
+                    <ChevronRight className="w-3.5 h-3.5 text-gray-400" />
                   </button>
-                </div>
-              </nav>
+
+                  <button
+                    type="button"
+                    onClick={() => navigateTo('host-payments')}
+                    className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-gray-700 hover:bg-gray-50 transition text-left"
+                  >
+                    <span className="flex items-center gap-2.5">
+                      <Receipt className="w-4 h-4 text-gray-400" />
+                      <span>Payments & Receipts</span>
+                    </span>
+                    <ChevronRight className="w-3.5 h-3.5 text-gray-400" />
+                  </button>
+                </nav>
+              </div>
+
+              <div>
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider px-3 mb-2">Real Estate</p>
+                <nav className="space-y-1 text-xs font-semibold">
+                  <button
+                    type="button"
+                    onClick={() => navigateTo('landlord-properties')}
+                    className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-gray-700 hover:bg-gray-50 transition text-left"
+                  >
+                    <span className="flex items-center gap-2.5">
+                      <Building2 className="w-4 h-4 text-emerald-700" />
+                      <span>Properties & Units</span>
+                    </span>
+                    <ChevronRight className="w-3.5 h-3.5 text-gray-400" />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => navigateTo('landlord-schedules')}
+                    className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-gray-700 hover:bg-gray-50 transition text-left"
+                  >
+                    <span className="flex items-center gap-2.5">
+                      <Calendar className="w-4 h-4 text-emerald-700" />
+                      <span>Rent Schedules</span>
+                    </span>
+                    <ChevronRight className="w-3.5 h-3.5 text-gray-400" />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => navigateTo('landlord-tenants')}
+                    className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-gray-700 hover:bg-gray-50 transition text-left"
+                  >
+                    <span className="flex items-center gap-2.5">
+                      <Users className="w-4 h-4 text-emerald-700" />
+                      <span>Tenants & Leases</span>
+                    </span>
+                    <ChevronRight className="w-3.5 h-3.5 text-gray-400" />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => navigateTo('landlord-reconciliation')}
+                    className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-gray-700 hover:bg-gray-50 transition text-left"
+                  >
+                    <span className="flex items-center gap-2.5">
+                      <ShieldCheck className="w-4 h-4 text-emerald-700" />
+                      <span>Reconciliation</span>
+                    </span>
+                    <ChevronRight className="w-3.5 h-3.5 text-gray-400" />
+                  </button>
+                </nav>
+              </div>
+
+              <div>
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider px-3 mb-2">Fleet Mobility</p>
+                <nav className="space-y-1 text-xs font-semibold">
+                  <button
+                    type="button"
+                    onClick={() => navigateTo('host-vehicles')}
+                    className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-gray-700 hover:bg-gray-50 transition text-left"
+                  >
+                    <span className="flex items-center gap-2.5">
+                      <Car className="w-4 h-4 text-gray-400" />
+                      <span>My vehicles</span>
+                    </span>
+                    <ChevronRight className="w-3.5 h-3.5 text-gray-400" />
+                  </button>
+                </nav>
+              </div>
+
+              <div className="pt-2 border-t border-black/[0.04]">
+                <nav className="space-y-1 text-xs font-semibold">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setHostAccountTab('wallet');
+                      setWalletModalOpen(true);
+                    }}
+                    style={hostAccountTab === 'wallet' ? { backgroundColor: '#06372d' } : {}}
+                    className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-left transition ${
+                      hostAccountTab === 'wallet' ? 'text-white font-bold shadow-2xs' : 'text-gray-700 hover:bg-gray-50'
+                    }`}
+                  >
+                    <span className="flex items-center gap-2.5">
+                      <Wallet className={`w-4 h-4 ${hostAccountTab === 'wallet' ? 'text-white' : 'text-gray-400'}`} />
+                      <span>Payout wallet</span>
+                    </span>
+                    <ChevronRight className={`w-3.5 h-3.5 ${hostAccountTab === 'wallet' ? 'text-white' : 'text-gray-400'}`} />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setHostAccountTab('profile')}
+                    style={hostAccountTab === 'profile' ? { backgroundColor: '#06372d' } : {}}
+                    className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-left transition ${
+                      hostAccountTab === 'profile' ? 'text-white font-bold shadow-2xs' : 'text-gray-700 hover:bg-gray-50'
+                    }`}
+                  >
+                    <span className="flex items-center gap-2.5">
+                      <User className={`w-4 h-4 ${hostAccountTab === 'profile' ? 'text-white' : 'text-gray-400'}`} />
+                      <span>Account</span>
+                    </span>
+                    <ChevronRight className={`w-3.5 h-3.5 ${hostAccountTab === 'profile' ? 'text-white' : 'text-gray-400'}`} />
+                  </button>
+
+                  <div className="pt-2">
+                    <button
+                      onClick={() => {
+                        handleDisconnectWallet();
+                      }}
+                      className="w-full text-xs font-semibold text-gray-500 hover:text-black py-2 px-3 rounded-xl hover:bg-gray-50 transition text-left flex items-center gap-2"
+                    >
+                      <LogOut className="w-4 h-4" />
+                      <span>Log out</span>
+                    </button>
+                  </div>
+                </nav>
+              </div>
             </div>
           </aside>
 

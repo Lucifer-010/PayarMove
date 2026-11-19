@@ -177,10 +177,10 @@ export default function TenantPayModal({ isOpen, onClose, obligation, onSuccess 
 
       // 5. Automatically reconcile with PayarMove backend and generate receipt
       setSigningStatus('Transaction confirmed on-chain! Reconciling obligation and generating receipt...');
-      const reconcileRes = await api.reconciliation.verifyTransaction(finalTxHash);
+      const oblRef = obligation?.obligation_reference || obligation?.obligationReference || obligation?.obligation_ref || '';
+      const reconcileRes = await api.reconciliation.verifyTransaction(finalTxHash, oblRef);
       setReconciliationResult(reconcileRes);
       setStep('success');
-      if (onSuccess) onSuccess(reconcileRes);
     } catch (err) {
       console.error('Wallet payment error:', err);
       setErrorMsg(err.message || 'Payment or signing failed.');
@@ -202,10 +202,10 @@ export default function TenantPayModal({ isOpen, onClose, obligation, onSuccess 
     setStep('confirming');
 
     try {
-      const res = await api.reconciliation.verifyTransaction(hash);
+      const oblRef = obligation?.obligation_reference || obligation?.obligationReference || obligation?.obligation_ref || '';
+      const res = await api.reconciliation.verifyTransaction(hash, oblRef);
       setReconciliationResult(res);
       setStep('success');
-      if (onSuccess) onSuccess(res);
     } catch (err) {
       setErrorMsg(
         err.message ||
@@ -215,6 +215,20 @@ export default function TenantPayModal({ isOpen, onClose, obligation, onSuccess 
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleDone = () => {
+    if (onSuccess && reconciliationResult) {
+      onSuccess(reconciliationResult);
+    }
+    onClose();
+  };
+
+  const handleClose = () => {
+    if (step === 'success' && onSuccess && reconciliationResult) {
+      onSuccess(reconciliationResult);
+    }
+    onClose();
   };
 
   const copyToClipboard = (text, type) => {
@@ -234,7 +248,7 @@ export default function TenantPayModal({ isOpen, onClose, obligation, onSuccess 
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
       <div className="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-8 shadow-2xl border border-gray-100 relative animate-in fade-in zoom-in-95 duration-200">
         <button
-          onClick={onClose}
+          onClick={handleClose}
           className="absolute top-5 right-5 p-2 rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition"
         >
           <X className="w-5 h-5" />
@@ -567,7 +581,7 @@ export default function TenantPayModal({ isOpen, onClose, obligation, onSuccess 
 
             <div className="flex gap-3">
               <button
-                onClick={onClose}
+                onClick={handleDone}
                 className="flex-1 py-3 px-4 rounded-xl bg-[#0A4F4E] hover:bg-[#083D3C] text-white font-bold text-sm shadow-md transition cursor-pointer"
               >
                 Done

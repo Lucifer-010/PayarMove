@@ -491,10 +491,13 @@ export const api = {
 
   reconciliation: {
     listPayments: () => request('/rentals/reconciliations/'),
-    verifyTransaction: (txHash) =>
+    verifyTransaction: (txHash, obligationReference = '') =>
       request('/rentals/reconciliations/verify-transaction/', {
         method: 'POST',
-        body: JSON.stringify({ tx_hash: txHash }),
+        body: JSON.stringify({
+          tx_hash: txHash,
+          obligation_reference: obligationReference || '',
+        }),
       }),
     getUnmatched: () => request('/rentals/reconciliations/unmatched/'),
     resolveUnmatched: (paymentId, obligationId, notes = '') =>

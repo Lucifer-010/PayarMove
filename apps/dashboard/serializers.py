@@ -22,6 +22,16 @@ class HostDashboardSerializer(serializers.Serializer):
     vehicles_listed_count = serializers.IntegerField()
     active_bookings_count = serializers.IntegerField()
     completed_bookings_count = serializers.IntegerField()
+    # Property rent metrics
+    properties_listed_count = serializers.IntegerField(default=0, required=False)
+    total_units_count = serializers.IntegerField(default=0, required=False)
+    occupied_units_count = serializers.IntegerField(default=0, required=False)
+    active_tenants_count = serializers.IntegerField(default=0, required=False)
+    rent_due_usdc = serializers.DecimalField(max_digits=18, decimal_places=7, default=0, required=False)
+    total_rent_collected_usdc = serializers.DecimalField(max_digits=18, decimal_places=7, default=0, required=False)
+    outstanding_rent_usdc = serializers.DecimalField(max_digits=18, decimal_places=7, default=0, required=False)
+    recent_rent_payments = serializers.ListField(child=serializers.DictField(), default=list, required=False)
+    managed_properties = serializers.ListField(child=serializers.DictField(), default=list, required=False)
 
 
 class LandlordCollectionItemSerializer(serializers.Serializer):

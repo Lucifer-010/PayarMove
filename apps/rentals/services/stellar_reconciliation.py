@@ -185,8 +185,14 @@ class StellarReconciliationService:
                         obligation = candidate_obligations.first()
 
                 # Rule 3 & 4: Validate recipient and asset
-                wallet_is_registered = Property.objects.filter(receiving_wallet__iexact=recipient).exists() or \
-                                       RentObligation.objects.filter(receiving_wallet__iexact=recipient).exists()
+                wallet_is_registered = (
+                    Property.objects.filter(receiving_wallet__iexact=recipient).exists() or
+                    RentObligation.objects.filter(receiving_wallet__iexact=recipient).exists() or
+                    (obligation and (
+                        (obligation.receiving_wallet or '').lower() == recipient.lower() or
+                        (obligation.landlord and (obligation.landlord.primary_stellar_address or '').lower() == recipient.lower())
+                    ))
+                )
 
                 reconciliation_status = RentPayment.ReconciliationStatus.CONFIRMED
                 review_notes = ""

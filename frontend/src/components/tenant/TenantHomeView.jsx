@@ -32,13 +32,15 @@ export default function TenantHomeView() {
   const [activeObligation, setActiveObligation] = useState(null);
   const [downloadingId, setDownloadingId] = useState(null);
 
-  const fetchTenantData = async () => {
+  const fetchTenantData = async (showLoading = false) => {
     if (!user?.isLoggedIn) {
       setLoading(false);
       return;
     }
 
-    setLoading(true);
+    if (showLoading || !dashboardData) {
+      setLoading(true);
+    }
     setErrorMsg('');
     try {
       const data = await api.dashboard.getTenantSummary();

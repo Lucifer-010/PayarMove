@@ -143,16 +143,16 @@ export default function Navbar() {
 
             {/* Host / Landlord Mode Top Nav */}
             {mode === 'host' && (
-              <nav className="hidden md:flex items-center gap-5 text-sm font-semibold">
+              <nav className="hidden md:flex items-center gap-4 text-xs font-semibold">
                 <button
-                  onClick={() => navigateTo('landlord-dashboard')}
+                  onClick={() => navigateTo('host-dashboard')}
                   className={`py-1 transition relative ${
-                    currentView === 'landlord-dashboard'
+                    currentView === 'host-dashboard'
                       ? 'text-gray-950 font-bold after:absolute after:bottom-[-22px] after:left-0 after:right-0 after:h-[2px] after:bg-[#0A4F4E]'
                       : 'text-gray-600 hover:text-black'
                   }`}
                 >
-                  Rentals Overview
+                  Dashboard
                 </button>
 
                 <button
@@ -174,7 +174,7 @@ export default function Navbar() {
                       : 'text-gray-600 hover:text-black'
                   }`}
                 >
-                  Rent Schedules
+                  Schedules
                 </button>
 
                 <button
@@ -197,6 +197,28 @@ export default function Navbar() {
                   }`}
                 >
                   Reconciliation
+                </button>
+
+                <button
+                  onClick={() => navigateTo('host-payments')}
+                  className={`py-1 transition relative ${
+                    currentView === 'host-payments'
+                      ? 'text-gray-950 font-bold after:absolute after:bottom-[-22px] after:left-0 after:right-0 after:h-[2px] after:bg-[#0A4F4E]'
+                      : 'text-gray-600 hover:text-black'
+                  }`}
+                >
+                  Payments
+                </button>
+
+                <button
+                  onClick={() => navigateTo('host-vehicles')}
+                  className={`py-1 transition relative ${
+                    currentView === 'host-vehicles'
+                      ? 'text-gray-950 font-bold after:absolute after:bottom-[-22px] after:left-0 after:right-0 after:h-[2px] after:bg-[#0A4F4E]'
+                      : 'text-gray-600 hover:text-black'
+                  }`}
+                >
+                  Vehicles
                 </button>
               </nav>
             )}

@@ -864,7 +864,7 @@ export function AppProvider({ children }) {
           );
 
           const effectiveRole = (profile.role || '').toUpperCase();
-          if (effectiveRole === 'HOST' || effectiveRole === 'ADMIN' || mode === 'hosting' || hostVehiclesRaw.length > 0) {
+          if (effectiveRole === 'HOST' || effectiveRole === 'LANDLORD' || effectiveRole === 'ADMIN' || mode === 'hosting' || mode === 'host' || hostVehiclesRaw.length > 0) {
             const hostSummary = await api.dashboard.getHostSummary().catch(() => null);
             if (hostSummary) setHostMetrics(hostSummary);
 
@@ -1350,11 +1350,12 @@ export function AppProvider({ children }) {
 
   // Mode switcher (renter / host / admin) with role privilege enforcement
   const switchMode = (newMode) => {
-    if (newMode === 'admin' && user.role !== 'admin') {
+    const roleLower = (user?.role || '').toLowerCase();
+    if (newMode === 'admin' && roleLower !== 'admin') {
       console.warn('Access restricted: User is not an admin.');
       return false;
     }
-    if (newMode === 'host' && user.role !== 'host' && user.role !== 'admin') {
+    if (newMode === 'host' && roleLower !== 'host' && roleLower !== 'landlord' && roleLower !== 'admin') {
       navigateTo('become-host');
       return false;
     }

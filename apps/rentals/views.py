@@ -385,10 +385,14 @@ class PropertyViewSet(viewsets.ModelViewSet):
             return Property.objects.all().order_by('-created_at')
         if self.action in ['retrieve', 'units']:
             return Property.objects.filter(Q(is_active=True) | Q(landlord=user)).order_by('-created_at')
-        if user.role in ('LANDLORD', 'HOST'):
+        role_upper = (user.role or '').upper()
+        if role_upper in ('LANDLORD', 'HOST'):
             if self.request.query_params.get('public') == 'true':
                 return Property.objects.filter(is_active=True).order_by('-created_at')
-            return Property.objects.filter(landlord=user).order_by('-created_at')
+            p_filter = Q(landlord=user)
+            if user.primary_stellar_address:
+                p_filter |= Q(receiving_wallet=user.primary_stellar_address)
+            return Property.objects.filter(p_filter).order_by('-created_at')
         # Tenants see properties they have active assignments with or all active
         return Property.objects.filter(is_active=True).order_by('-created_at')
 
@@ -479,8 +483,12 @@ class TenantAssignmentViewSet(viewsets.ModelViewSet):
         user = self.request.user
         if user.is_staff or user.is_superuser or user.role == 'ADMIN':
             return TenantAssignment.objects.all().order_by('-created_at')
-        if user.role in ('LANDLORD', 'HOST'):
-            return TenantAssignment.objects.filter(landlord=user).order_by('-created_at')
+        role_upper = (user.role or '').upper()
+        if role_upper in ('LANDLORD', 'HOST'):
+            p_filter = Q(landlord=user)
+            if user.primary_stellar_address:
+                p_filter |= Q(property__receiving_wallet=user.primary_stellar_address)
+            return TenantAssignment.objects.filter(p_filter).order_by('-created_at')
         return TenantAssignment.objects.filter(tenant=user).order_by('-created_at')
 
     def perform_create(self, serializer):
@@ -581,8 +589,12 @@ class RentalScheduleViewSet(viewsets.ModelViewSet):
         user = self.request.user
         if user.is_staff or user.is_superuser or user.role == 'ADMIN':
             return RentalSchedule.objects.all().order_by('-created_at')
-        if user.role in ('LANDLORD', 'HOST'):
-            return RentalSchedule.objects.filter(landlord=user).order_by('-created_at')
+        role_upper = (user.role or '').upper()
+        if role_upper in ('LANDLORD', 'HOST'):
+            p_filter = Q(landlord=user)
+            if user.primary_stellar_address:
+                p_filter |= Q(property__receiving_wallet=user.primary_stellar_address)
+            return RentalSchedule.objects.filter(p_filter).order_by('-created_at')
         return RentalSchedule.objects.filter(tenant=user).order_by('-created_at')
 
     @extend_schema(
@@ -621,9 +633,13 @@ class RentObligationViewSet(viewsets.ReadOnlyModelViewSet):
     def get_queryset(self):
         user = self.request.user
         qs = RentObligation.objects.all().order_by('due_date', '-created_at')
-        if not (user.is_staff or user.is_superuser or user.role == 'ADMIN'):
-            if user.role in ('LANDLORD', 'HOST'):
-                qs = qs.filter(landlord=user)
+        role_upper = (user.role or '').upper()
+        if not (user.is_staff or user.is_superuser or role_upper == 'ADMIN'):
+            if role_upper in ('LANDLORD', 'HOST'):
+                p_filter = Q(landlord=user)
+                if user.primary_stellar_address:
+                    p_filter |= Q(receiving_wallet=user.primary_stellar_address) | Q(property__receiving_wallet=user.primary_stellar_address)
+                qs = qs.filter(p_filter)
             else:
                 qs = qs.filter(tenant=user)
 
@@ -903,9 +919,13 @@ class PaymentReconciliationViewSet(viewsets.ReadOnlyModelViewSet):
     def get_queryset(self):
         user = self.request.user
         qs = RentPayment.objects.all().order_by('-created_at')
-        if not (user.is_staff or user.is_superuser or user.role == 'ADMIN'):
-            if user.role in ('LANDLORD', 'HOST'):
-                qs = qs.filter(Q(obligation__landlord=user) | Q(receiving_stellar_address__in=user.managed_properties.values_list('receiving_wallet', flat=True)))
+        role_upper = (user.role or '').upper()
+        if not (user.is_staff or user.is_superuser or role_upper == 'ADMIN'):
+            if role_upper in ('LANDLORD', 'HOST'):
+                pay_filter = Q(obligation__landlord=user)
+                if user.primary_stellar_address:
+                    pay_filter |= Q(receiving_stellar_address=user.primary_stellar_address) | Q(obligation__receiving_wallet=user.primary_stellar_address)
+                qs = qs.filter(pay_filter)
             else:
                 qs = qs.filter(tenant=user)
         return qs
@@ -1037,10 +1057,14 @@ class RentReceiptViewSet(viewsets.ReadOnlyModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        if user.is_staff or user.is_superuser or user.role == 'ADMIN':
+        role_upper = (user.role or '').upper()
+        if user.is_staff or user.is_superuser or role_upper == 'ADMIN':
             return RentReceipt.objects.all().order_by('-payment_date')
-        if user.role in ('LANDLORD', 'HOST'):
-            return RentReceipt.objects.filter(obligation__landlord=user).order_by('-payment_date')
+        if role_upper in ('LANDLORD', 'HOST'):
+            p_filter = Q(obligation__landlord=user)
+            if user.primary_stellar_address:
+                p_filter |= Q(obligation__receiving_wallet=user.primary_stellar_address)
+            return RentReceipt.objects.filter(p_filter).order_by('-payment_date')
         return RentReceipt.objects.filter(tenant=user).order_by('-payment_date')
 
     @extend_schema(

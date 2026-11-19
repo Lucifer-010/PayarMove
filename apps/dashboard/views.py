@@ -110,13 +110,25 @@ class LandlordDashboardView(generics.GenericAPIView):
             assignments_qs = TenantAssignment.objects.all()
             payments_qs = RentPayment.objects.all()
         else:
-            obligations_qs = RentObligation.objects.filter(landlord=user)
-            properties_qs = Property.objects.filter(landlord=user)
-            assignments_qs = TenantAssignment.objects.filter(landlord=user)
-            payments_qs = RentPayment.objects.filter(
-                Q(obligation__landlord=user) |
-                Q(receiving_stellar_address__in=properties_qs.values_list('receiving_wallet', flat=True))
+            p_filter = Q(landlord=user)
+            if user.primary_stellar_address:
+                p_filter |= Q(receiving_wallet=user.primary_stellar_address)
+            properties_qs = Property.objects.filter(p_filter)
+
+            o_filter = Q(landlord=user) | Q(property__in=properties_qs)
+            if user.primary_stellar_address:
+                o_filter |= Q(receiving_wallet=user.primary_stellar_address)
+            obligations_qs = RentObligation.objects.filter(o_filter)
+
+            assignments_qs = TenantAssignment.objects.filter(
+                Q(landlord=user) | Q(property__in=properties_qs)
             )
+            pay_filter = Q(obligation__in=obligations_qs) | Q(obligation__landlord=user)
+            if user.primary_stellar_address:
+                pay_filter |= Q(receiving_stellar_address=user.primary_stellar_address)
+            if properties_qs.exists():
+                pay_filter |= Q(receiving_stellar_address__in=properties_qs.values_list('receiving_wallet', flat=True))
+            payments_qs = RentPayment.objects.filter(pay_filter)
 
         rent_due = obligations_qs.aggregate(total=Sum('amount_due_usdc'))['total'] or Decimal('0.0000000')
         rent_collected = obligations_qs.aggregate(total=Sum('amount_paid_usdc'))['total'] or Decimal('0.0000000')
@@ -334,12 +346,80 @@ class HostDashboardView(generics.GenericAPIView):
         total_earned = HostPayout.objects.filter(host=host, status=HostPayout.Status.COMPLETED).aggregate(total=Sum('net_payout_usdc'))['total'] or Decimal('0.0000000')
         pending_payout = HostPayout.objects.filter(host=host, status=HostPayout.Status.PENDING).aggregate(total=Sum('net_payout_usdc'))['total'] or Decimal('0.0000000')
 
+        # Property Rent Data for Host / Landlord
+        p_filter = Q(landlord=host)
+        if host.primary_stellar_address:
+            p_filter |= Q(receiving_wallet=host.primary_stellar_address)
+        properties_qs = Property.objects.filter(p_filter)
+
+        o_filter = Q(landlord=host) | Q(property__in=properties_qs)
+        if host.primary_stellar_address:
+            o_filter |= Q(receiving_wallet=host.primary_stellar_address)
+        obligations_qs = RentObligation.objects.filter(o_filter)
+        units_qs = RentalUnit.objects.filter(property__in=properties_qs)
+
+        rent_due = obligations_qs.aggregate(total=Sum('amount_due_usdc'))['total'] or Decimal('0.0000000')
+        rent_collected = obligations_qs.aggregate(total=Sum('amount_paid_usdc'))['total'] or Decimal('0.0000000')
+        rent_outstanding = obligations_qs.aggregate(total=Sum('outstanding_balance_usdc'))['total'] or Decimal('0.0000000')
+        active_tenants = TenantAssignment.objects.filter(
+            Q(landlord=host) | Q(property__in=properties_qs),
+            status=TenantAssignment.Status.ACTIVE
+        ).values('tenant').distinct().count()
+
+        # Recent rent payments for host's properties
+        recent_rent_payments = []
+        pay_filter = Q(obligation__in=obligations_qs) | Q(obligation__landlord=host)
+        if host.primary_stellar_address:
+            pay_filter |= Q(receiving_stellar_address=host.primary_stellar_address)
+        if properties_qs.exists():
+            pay_filter |= Q(receiving_stellar_address__in=properties_qs.values_list('receiving_wallet', flat=True))
+
+        payments_qs = RentPayment.objects.filter(pay_filter).select_related('obligation', 'obligation__property', 'tenant').order_by('-created_at')[:15]
+
+        for p in payments_qs:
+            receipt = getattr(p, 'receipt', None)
+            recent_rent_payments.append({
+                'id': str(p.id),
+                'payment_reference': p.payment_reference,
+                'property_name': p.obligation.property.name if p.obligation and p.obligation.property else 'Property',
+                'tenant_email': p.tenant.email if p.tenant else (p.obligation.tenant.email if p.obligation and p.obligation.tenant else 'Tenant'),
+                'amount_usdc': str(p.amount),
+                'asset': p.asset_code,
+                'status': p.reconciliation_status,
+                'stellar_tx_hash': p.stellar_tx_hash,
+                'receipt_number': receipt.receipt_number if receipt else None,
+                'created_at': p.created_at.isoformat(),
+            })
+
+        # List of managed properties for host
+        managed_props = []
+        for prop in properties_qs[:10]:
+            managed_props.append({
+                'id': str(prop.id),
+                'name': prop.name,
+                'city': prop.city,
+                'receiving_wallet': prop.owner_wallet,
+                'total_units': prop.units.count(),
+                'occupied_units': prop.units.filter(is_occupied=True).count(),
+                'is_active': prop.is_active,
+            })
+
         data = {
             'total_earned_usdc': total_earned,
             'pending_payout_usdc': pending_payout,
             'vehicles_listed_count': Vehicle.objects.filter(host=host).count(),
             'active_bookings_count': Rental.objects.filter(host=host, status__in=[Rental.Status.CONFIRMED, Rental.Status.ACTIVE]).count(),
             'completed_bookings_count': Rental.objects.filter(host=host, status=Rental.Status.COMPLETED).count(),
+            # Property rent data
+            'properties_listed_count': properties_qs.count(),
+            'total_units_count': units_qs.count(),
+            'occupied_units_count': units_qs.filter(is_occupied=True).count(),
+            'active_tenants_count': active_tenants,
+            'rent_due_usdc': rent_due,
+            'total_rent_collected_usdc': rent_collected,
+            'outstanding_rent_usdc': rent_outstanding,
+            'recent_rent_payments': recent_rent_payments,
+            'managed_properties': managed_props,
         }
         return Response(data)
 
@@ -371,13 +451,25 @@ class LandlordDashboardView(generics.GenericAPIView):
             assignments_qs = TenantAssignment.objects.all()
             payments_qs = RentPayment.objects.all()
         else:
-            obligations_qs = RentObligation.objects.filter(landlord=user)
-            properties_qs = Property.objects.filter(landlord=user)
-            assignments_qs = TenantAssignment.objects.filter(landlord=user)
-            payments_qs = RentPayment.objects.filter(
-                Q(obligation__landlord=user) |
-                Q(receiving_stellar_address__in=properties_qs.values_list('receiving_wallet', flat=True))
+            p_filter = Q(landlord=user)
+            if user.primary_stellar_address:
+                p_filter |= Q(receiving_wallet=user.primary_stellar_address)
+            properties_qs = Property.objects.filter(p_filter)
+
+            o_filter = Q(landlord=user) | Q(property__in=properties_qs)
+            if user.primary_stellar_address:
+                o_filter |= Q(receiving_wallet=user.primary_stellar_address)
+            obligations_qs = RentObligation.objects.filter(o_filter)
+
+            assignments_qs = TenantAssignment.objects.filter(
+                Q(landlord=user) | Q(property__in=properties_qs)
             )
+            pay_filter = Q(obligation__in=obligations_qs) | Q(obligation__landlord=user)
+            if user.primary_stellar_address:
+                pay_filter |= Q(receiving_stellar_address=user.primary_stellar_address)
+            if properties_qs.exists():
+                pay_filter |= Q(receiving_stellar_address__in=properties_qs.values_list('receiving_wallet', flat=True))
+            payments_qs = RentPayment.objects.filter(pay_filter)
 
         rent_due = obligations_qs.aggregate(total=Sum('amount_due_usdc'))['total'] or Decimal('0.0000000')
         rent_collected = obligations_qs.aggregate(total=Sum('amount_paid_usdc'))['total'] or Decimal('0.0000000')

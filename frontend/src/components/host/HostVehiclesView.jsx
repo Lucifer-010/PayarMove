@@ -9,176 +9,23 @@ export default function HostVehiclesView() {
   const displayList = hostVehicles || [];
 
   return (
-    <div className="min-h-screen bg-gray-50/50 pb-20">
-      <div className="max-w-7xl mx-auto px-4 sm:px-8 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-          {/* Host Sidebar */}
-          <aside className="lg:col-span-1 hidden lg:block">
-            <div className="bg-white rounded-2xl border border-black/[0.04] p-5 shadow-[0_8px_30px_rgba(0,0,0,0.04)] space-y-5">
-              <div>
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider px-3 mb-2">Host Overview</p>
-                <nav className="space-y-1 text-xs font-semibold">
-                  <button
-                    type="button"
-                    onClick={() => navigateTo('host-dashboard')}
-                    className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-gray-700 hover:bg-gray-50 transition"
-                  >
-                    <span className="flex items-center gap-2.5">
-                      <LayoutDashboard className="w-4 h-4 text-gray-400" />
-                      <span>Dashboard</span>
-                    </span>
-                    <ChevronRight className="w-3.5 h-3.5 text-gray-400" />
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => navigateTo('host-payments')}
-                    className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-gray-700 hover:bg-gray-50 transition"
-                  >
-                    <span className="flex items-center gap-2.5">
-                      <Receipt className="w-4 h-4 text-gray-400" />
-                      <span>Rental payments</span>
-                    </span>
-                    <ChevronRight className="w-3.5 h-3.5 text-gray-400" />
-                  </button>
-                </nav>
-              </div>
-
-              <div>
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider px-3 mb-2">Real Estate</p>
-                <nav className="space-y-1 text-xs font-semibold">
-                  <button
-                    type="button"
-                    onClick={() => navigateTo('landlord-properties')}
-                    className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-gray-700 hover:bg-gray-50 transition"
-                  >
-                    <span className="flex items-center gap-2.5">
-                      <Building2 className="w-4 h-4 text-emerald-700" />
-                      <span>Properties & Units</span>
-                    </span>
-                    <ChevronRight className="w-3.5 h-3.5 text-gray-400" />
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => navigateTo('landlord-schedules')}
-                    className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-gray-700 hover:bg-gray-50 transition"
-                  >
-                    <span className="flex items-center gap-2.5">
-                      <Calendar className="w-4 h-4 text-emerald-700" />
-                      <span>Rent Schedules</span>
-                    </span>
-                    <ChevronRight className="w-3.5 h-3.5 text-gray-400" />
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => navigateTo('landlord-tenants')}
-                    className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-gray-700 hover:bg-gray-50 transition"
-                  >
-                    <span className="flex items-center gap-2.5">
-                      <Users className="w-4 h-4 text-emerald-700" />
-                      <span>Tenants & Leases</span>
-                    </span>
-                    <ChevronRight className="w-3.5 h-3.5 text-gray-400" />
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => navigateTo('landlord-reconciliation')}
-                    className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-gray-700 hover:bg-gray-50 transition"
-                  >
-                    <span className="flex items-center gap-2.5">
-                      <ShieldCheck className="w-4 h-4 text-emerald-700" />
-                      <span>Reconciliation</span>
-                    </span>
-                    <ChevronRight className="w-3.5 h-3.5 text-gray-400" />
-                  </button>
-                </nav>
-              </div>
-
-              <div>
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider px-3 mb-2">Fleet Mobility</p>
-                <nav className="space-y-1 text-xs font-semibold">
-                  <button
-                    type="button"
-                    className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-[#06372d] text-white shadow-2xs font-bold"
-                  >
-                    <span className="flex items-center gap-2.5">
-                      <Car className="w-4 h-4" />
-                      <span>My vehicles</span>
-                    </span>
-                    <ChevronRight className="w-3.5 h-3.5 text-white" />
-                  </button>
-                </nav>
-              </div>
-
-              <div className="pt-2 border-t border-black/[0.04]">
-                <nav className="space-y-1 text-xs font-semibold">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setHostAccountTab?.('wallet');
-                      navigateTo('host-account');
-                    }}
-                    className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-gray-700 hover:bg-gray-50 transition"
-                  >
-                    <span className="flex items-center gap-2.5">
-                      <Wallet className="w-4 h-4 text-gray-400" />
-                      <span>Payout wallet</span>
-                    </span>
-                    <ChevronRight className="w-3.5 h-3.5 text-gray-400" />
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setHostAccountTab?.('profile');
-                      navigateTo('host-account');
-                    }}
-                    className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-gray-700 hover:bg-gray-50 transition"
-                  >
-                    <span className="flex items-center gap-2.5">
-                      <User className="w-4 h-4 text-gray-400" />
-                      <span>Account</span>
-                    </span>
-                    <ChevronRight className="w-3.5 h-3.5 text-gray-400" />
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      switchMode('renting');
-                      navigateTo('explore');
-                    }}
-                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-gray-500 hover:text-red-600 transition"
-                  >
-                    <LogOut className="w-4 h-4" />
-                    <span>Switch to Renter</span>
-                  </button>
-                </nav>
-              </div>
-            </div>
-          </aside>
-
-          {/* Main Area */}
-          <main className="lg:col-span-3 space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div>
-                <h1 className="text-2xl font-black text-gray-950 tracking-tight">My vehicles</h1>
-                <p className="text-xs text-gray-500 mt-0.5">
-                  Manage your mobility fleet and live rental availability.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => navigateTo('host-add-vehicle')}
-                className="bg-[#06372d] hover:bg-[#09473b] text-white px-5 py-2.5 rounded-xl text-xs font-bold transition shadow-2xs hover:shadow-xs flex items-center gap-1.5 shrink-0"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Add vehicle</span>
-              </button>
-            </div>
+    <div className="w-full max-w-full space-y-6 font-sans">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-black text-gray-950 tracking-tight">My vehicles</h1>
+          <p className="text-xs text-gray-500 mt-0.5">
+            Manage your mobility fleet and live rental availability.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => navigateTo('host-add-vehicle')}
+          className="bg-[#06372d] hover:bg-[#09473b] text-white px-5 py-2.5 rounded-xl text-xs font-bold transition shadow-2xs hover:shadow-xs flex items-center gap-1.5 shrink-0"
+        >
+          <Plus className="w-4 h-4" />
+          <span>Add vehicle</span>
+        </button>
+      </div>
 
             {/* Tabs */}
             <div className="flex items-center gap-2 border-b border-black/[0.04] pb-2">
@@ -295,9 +142,6 @@ export default function HostVehiclesView() {
                 </button>
               </div>
             )}
-          </main>
-        </div>
-      </div>
-    </div>
+          </div>
   );
 }

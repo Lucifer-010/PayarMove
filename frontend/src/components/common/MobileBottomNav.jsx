@@ -34,15 +34,15 @@ export default function MobileBottomNav({ forceMobile = false }) {
           <>
             {/* Landlord Dashboard */}
             <button
-              onClick={() => navigateTo('landlord-dashboard')}
+              onClick={() => navigateTo('host-dashboard')}
               className={`flex flex-col items-center gap-1 py-1 transition ${
-                currentView === 'landlord-dashboard'
+                currentView === 'host-dashboard' || currentView === 'landlord-dashboard'
                   ? 'text-[#0A4F4E] font-bold'
                   : 'text-gray-400 hover:text-gray-600 font-medium'
               }`}
             >
-              <LayoutDashboard className={`w-5 h-5 ${currentView === 'landlord-dashboard' ? 'stroke-[2.5]' : 'stroke-[1.75]'}`} />
-              <span className="text-[10px] tracking-tight">Rentals</span>
+              <LayoutDashboard className={`w-5 h-5 ${currentView === 'host-dashboard' || currentView === 'landlord-dashboard' ? 'stroke-[2.5]' : 'stroke-[1.75]'}`} />
+              <span className="text-[10px] tracking-tight">Dashboard</span>
             </button>
 
             {/* Properties */}

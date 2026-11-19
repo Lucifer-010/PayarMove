@@ -66,7 +66,7 @@ export default function Navbar() {
             <button
               onClick={() => {
                 if (mode === 'admin') navigateTo('admin-rentals');
-                else if (mode === 'host') navigateTo('landlord-dashboard');
+                else if (mode === 'host') navigateTo('host-dashboard');
                 else navigateTo('tenant-home');
               }}
               className="flex items-center gap-2 text-left group shrink-0"

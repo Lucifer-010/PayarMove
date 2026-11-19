@@ -145,100 +145,9 @@ export default function AddVehicleView() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50/50 pb-20">
-      <div className="max-w-7xl mx-auto px-4 sm:px-8 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-          {/* Host Left Sidebar (Matches Host - Add a vehicle.png artboard 6) */}
-          <aside className="lg:col-span-1 hidden lg:block">
-            <div className="bg-white rounded-2xl border border-black/[0.04] p-5 shadow-[0_8px_30px_rgba(0,0,0,0.04)] space-y-6">
-              <nav className="space-y-1 text-xs font-semibold">
-                <button
-                  type="button"
-                  onClick={() => navigateTo('host-dashboard')}
-                  className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-gray-700 hover:bg-gray-50 transition"
-                >
-                  <span className="flex items-center gap-2.5">
-                    <LayoutDashboard className="w-4 h-4 text-gray-400" />
-                    <span>Dashboard</span>
-                  </span>
-                  <ChevronRight className="w-3.5 h-3.5 text-gray-400" />
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => navigateTo('host-payments')}
-                  className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-gray-700 hover:bg-gray-50 transition"
-                >
-                  <span className="flex items-center gap-2.5">
-                    <Receipt className="w-4 h-4 text-gray-400" />
-                    <span>Rental payments</span>
-                  </span>
-                  <ChevronRight className="w-3.5 h-3.5 text-gray-400" />
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => navigateTo('host-vehicles')}
-                  className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl bg-[#06372d] text-white shadow-2xs font-bold"
-                >
-                  <span className="flex items-center gap-2.5">
-                    <Car className="w-4 h-4" />
-                    <span>My vehicles</span>
-                  </span>
-                  <ChevronRight className="w-3.5 h-3.5 text-white" />
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setHostAccountTab?.('wallet');
-                    navigateTo('host-account');
-                  }}
-                  className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-gray-700 hover:bg-gray-50 transition"
-                >
-                  <span className="flex items-center gap-2.5">
-                    <Wallet className="w-4 h-4 text-gray-400" />
-                    <span>Payout wallet</span>
-                  </span>
-                  <ChevronRight className="w-3.5 h-3.5 text-gray-400" />
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setHostAccountTab?.('profile');
-                    navigateTo('host-account');
-                  }}
-                  className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-gray-700 hover:bg-gray-50 transition"
-                >
-                  <span className="flex items-center gap-2.5">
-                    <User className="w-4 h-4 text-gray-400" />
-                    <span>Account</span>
-                  </span>
-                  <ChevronRight className="w-3.5 h-3.5 text-gray-400" />
-                </button>
-
-                <div className="pt-4 border-t border-black/[0.04]">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      switchMode('renting');
-                      navigateTo('explore');
-                    }}
-                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-gray-500 hover:text-red-600 transition"
-                  >
-                    <LogOut className="w-4 h-4" />
-                    <span>Switch to Renter</span>
-                  </button>
-                </div>
-              </nav>
-            </div>
-          </aside>
-
-          {/* Main Area: Matches Host - Add a vehicle.png artboard 6 */}
-          <main className="lg:col-span-3 space-y-6">
-            {/* Header with Title and Publish Buttons */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div className="w-full max-w-full space-y-6 font-sans">
+      {/* Header with Title and Publish Buttons */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
                 <h1 className="text-2xl font-black text-gray-950 tracking-tight">
                   Add a vehicle
@@ -670,9 +579,6 @@ export default function AddVehicleView() {
                 </div>
               </div>
             </div>
-          </main>
-        </div>
-      </div>
     </div>
   );
 }

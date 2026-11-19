@@ -39,6 +39,11 @@ import PropertyDetailView from './components/properties/PropertyDetailView';
 import TenantHomeView from './components/tenant/TenantHomeView';
 import TenantHistoryReceiptsView from './components/tenant/TenantHistoryReceiptsView';
 import LandlordWrapperView from './components/landlord/LandlordWrapperView';
+import LandlordPropertiesView from './components/landlord/LandlordPropertiesView';
+import LandlordSchedulesView from './components/landlord/LandlordSchedulesView';
+import LandlordTenantsView from './components/landlord/LandlordTenantsView';
+import LandlordReconciliationView from './components/landlord/LandlordReconciliationView';
+import HostUnifiedLayout from './components/host/HostUnifiedLayout';
 
 // Auth views
 import LoginView from './components/auth/LoginView';
@@ -60,11 +65,87 @@ function MainRouter() {
     initStellarKit();
   }, []);
 
-  const renderView = () => {
-    const roleUpper = (user?.role || '').toUpperCase();
-    const isAdmin = roleUpper === 'ADMIN' || Boolean(user?.is_staff || user?.is_superuser);
-    const isHostOrLandlord = roleUpper === 'HOST' || roleUpper === 'LANDLORD' || isAdmin;
+  const roleUpper = (user?.role || '').toUpperCase();
+  const isAdmin = roleUpper === 'ADMIN' || Boolean(user?.is_staff || user?.is_superuser);
+  const isHostOrLandlord = roleUpper === 'HOST' || roleUpper === 'LANDLORD' || isAdmin;
 
+  const hostViewsList = [
+    'host-dashboard',
+    'landlord-dashboard',
+    'landlord-properties',
+    'landlord-schedules',
+    'landlord-tenants',
+    'landlord-reconciliation',
+    'host-vehicles',
+    'host-add-vehicle',
+    'host-vehicle-manage',
+    'host-account',
+    'host-payments',
+  ];
+
+  // If in Host / Landlord views, render the unified Host layout with unified sidebar & header
+  if (hostViewsList.includes(currentView)) {
+    if (!user?.isLoggedIn) {
+      return (
+        <div className="min-h-screen flex flex-col bg-white">
+          <Navbar />
+          <main className="flex-1">
+            <LoginView />
+          </main>
+          <MobileBottomNav />
+        </div>
+      );
+    }
+    if (!isHostOrLandlord) {
+      return (
+        <div className="min-h-screen flex flex-col bg-white">
+          <Navbar />
+          <main className="flex-1">
+            <BecomeHostView />
+          </main>
+          <MobileBottomNav />
+        </div>
+      );
+    }
+
+    const renderHostViewContent = () => {
+      switch (currentView) {
+        case 'host-dashboard':
+        case 'landlord-dashboard':
+          return <HostDashboardView />;
+        case 'landlord-schedules':
+          return <LandlordSchedulesView />;
+        case 'landlord-properties':
+          return <LandlordPropertiesView />;
+        case 'landlord-tenants':
+          return <LandlordTenantsView />;
+        case 'landlord-reconciliation':
+          return <LandlordReconciliationView />;
+        case 'host-vehicles':
+          return <HostVehiclesView />;
+        case 'host-add-vehicle':
+          return <AddVehicleView />;
+        case 'host-vehicle-manage':
+          return <VehicleManageView />;
+        case 'host-account':
+          return <HostAccountView />;
+        case 'host-payments':
+          return <HostPaymentsView />;
+        default:
+          return <HostDashboardView />;
+      }
+    };
+
+    return (
+      <HostUnifiedLayout activeView={currentView}>
+        <ErrorBoundary key={currentView}>
+          {renderHostViewContent()}
+        </ErrorBoundary>
+      </HostUnifiedLayout>
+    );
+  }
+
+  const renderView = () => {
     // 1. Admin Role Guard
     const adminViews = ['admin-overview', 'admin-payments', 'admin-payment-detail', 'admin-ledger'];
     if (adminViews.includes(currentView)) {

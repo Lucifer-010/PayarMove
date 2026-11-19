@@ -61,10 +61,14 @@ function MainRouter() {
   }, []);
 
   const renderView = () => {
+    const roleUpper = (user?.role || '').toUpperCase();
+    const isAdmin = roleUpper === 'ADMIN' || Boolean(user?.is_staff || user?.is_superuser);
+    const isHostOrLandlord = roleUpper === 'HOST' || roleUpper === 'LANDLORD' || isAdmin;
+
     // 1. Admin Role Guard
     const adminViews = ['admin-overview', 'admin-payments', 'admin-payment-detail', 'admin-ledger'];
     if (adminViews.includes(currentView)) {
-      if (!user?.isLoggedIn || user?.role !== 'admin') {
+      if (!user?.isLoggedIn || !isAdmin) {
         return <AdminSignInView />;
       }
     }
@@ -75,7 +79,7 @@ function MainRouter() {
       if (!user?.isLoggedIn) {
         return <LoginView />;
       }
-      if (user?.role !== 'host' && user?.role !== 'admin') {
+      if (!isHostOrLandlord) {
         return <BecomeHostView />;
       }
     }

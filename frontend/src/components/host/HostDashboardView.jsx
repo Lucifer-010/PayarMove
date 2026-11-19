@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
 import {
   LayoutDashboard,
@@ -25,6 +25,7 @@ import {
   ArrowUpRight,
   Layers,
 } from 'lucide-react';
+import api from '../../services/api';
 
 export default function HostDashboardView() {
   const {
@@ -45,6 +46,43 @@ export default function HostDashboardView() {
   const [actionLoadingId, setActionLoadingId] = useState(null);
   const [actionToast, setActionToast] = useState(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Self-sufficient live data states for resilient rendering across local/remote backends
+  const [propertiesData, setPropertiesData] = useState([]);
+  const [landlordSummary, setLandlordSummary] = useState(null);
+  const [receiptsData, setReceiptsData] = useState([]);
+  const [isLoadingProps, setIsLoadingProps] = useState(false);
+
+  const fetchPropertyData = async () => {
+    try {
+      setIsLoadingProps(true);
+      const [propsRes, landlordRes, receiptsRes] = await Promise.allSettled([
+        api.properties.list(),
+        api.dashboard.getLandlordSummary(),
+        api.receipts.list(),
+      ]);
+
+      if (propsRes.status === 'fulfilled') {
+        const rawProps = propsRes.value?.results || propsRes.value || [];
+        setPropertiesData(Array.isArray(rawProps) ? rawProps : []);
+      }
+      if (landlordRes.status === 'fulfilled' && landlordRes.value) {
+        setLandlordSummary(landlordRes.value);
+      }
+      if (receiptsRes.status === 'fulfilled') {
+        const rawRec = receiptsRes.value?.results || receiptsRes.value || [];
+        setReceiptsData(Array.isArray(rawRec) ? rawRec : []);
+      }
+    } catch (err) {
+      console.warn('HostDashboard property data fetch notice:', err);
+    } finally {
+      setIsLoadingProps(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchPropertyData();
+  }, [user]);
 
   const payoutAddress = user?.walletAddress || user?.primary_stellar_address || connectedWallet?.address || '';
   const hasPayoutWallet = Boolean(payoutAddress && payoutAddress.trim());
@@ -74,23 +112,111 @@ export default function HostDashboardView() {
   const completedCountFleet = hostMetrics?.completed_bookings_count ?? completedRentalsList.length;
   const vehiclesCount = hostMetrics?.vehicles_listed_count ?? (hostVehicles?.length || 0);
 
+  // Managed Properties: Intelligently match Exxon's properties or all properties available to host
+  const managedProperties = useMemo(() => {
+    if (!propertiesData || propertiesData.length === 0) {
+      return hostMetrics?.managed_properties || [];
+    }
+
+    const userWallet = (user?.walletAddress || user?.primary_stellar_address || connectedWallet?.address || '').toLowerCase();
+    const userEmail = (user?.email || '').toLowerCase();
+    const userName = (user?.name || user?.username || '').toLowerCase();
+
+    const matching = propertiesData.filter((p) => {
+      const pEmail = (p.landlord_email || '').toLowerCase();
+      const pName = (p.landlord_name || '').toLowerCase();
+      const pWallet = (p.receiving_wallet || p.owner_wallet || '').toLowerCase();
+      const pId = String(p.landlord || '');
+
+      return (
+        (user?.id && pId === String(user.id)) ||
+        (userEmail && pEmail === userEmail) ||
+        (userName && (pName === userName || pEmail.includes(userName))) ||
+        (userWallet && pWallet === userWallet)
+      );
+    });
+
+    if (matching.length > 0) return matching;
+    return propertiesData;
+  }, [propertiesData, user, hostMetrics]);
+
   // Property Rent Metrics
-  const propertiesCount = Number(hostMetrics?.properties_listed_count || 0);
-  const totalUnits = Number(hostMetrics?.total_units_count || 0);
-  const occupiedUnits = Number(hostMetrics?.occupied_units_count || 0);
-  const activeTenants = Number(hostMetrics?.active_tenants_count || 0);
-  const rentCollected = Number(hostMetrics?.total_rent_collected_usdc || 0);
-  const rentOutstanding = Number(hostMetrics?.outstanding_rent_usdc || 0);
-  const rentDue = Number(hostMetrics?.rent_due_usdc || 0);
-  const recentRentPayments = hostMetrics?.recent_rent_payments || [];
-  const managedProperties = hostMetrics?.managed_properties || [];
+  const propertiesCount = managedProperties.length > 0 ? managedProperties.length : Number(hostMetrics?.properties_listed_count || 0);
+
+  const totalUnits = useMemo(() => {
+    if (managedProperties.length > 0) {
+      return managedProperties.reduce((sum, p) => sum + Number(p.total_units_count ?? p.total_units ?? (p.units ? p.units.length : 0) ?? 0), 0);
+    }
+    return Number(landlordSummary?.total_units_count || hostMetrics?.total_units_count || 0);
+  }, [managedProperties, landlordSummary, hostMetrics]);
+
+  const occupiedUnits = useMemo(() => {
+    if (managedProperties.length > 0) {
+      return managedProperties.reduce((sum, p) => sum + Number(p.occupied_units_count ?? p.occupied_units ?? (p.units ? p.units.filter(u => u.is_occupied).length : 0) ?? 0), 0);
+    }
+    return Number(landlordSummary?.occupied_units_count || hostMetrics?.occupied_units_count || 0);
+  }, [managedProperties, landlordSummary, hostMetrics]);
+
+  const activeTenants = Number(landlordSummary?.active_tenants || hostMetrics?.active_tenants_count || occupiedUnits || 0);
+
+  const rentCollected = Number(
+    landlordSummary?.rent_collected_usdc ??
+    hostMetrics?.total_rent_collected_usdc ??
+    receiptsData.reduce((sum, r) => sum + Number(r.amount_paid || r.amount_paid_usdc || 0), 0)
+  );
+
+  const rentOutstanding = Number(
+    landlordSummary?.outstanding_usdc ??
+    hostMetrics?.outstanding_rent_usdc ??
+    0
+  );
+
+  const rentDue = Number(
+    landlordSummary?.rent_due_usdc ??
+    hostMetrics?.rent_due_usdc ??
+    (rentCollected + rentOutstanding)
+  );
+
+  // Recent Rent Collections: Combine receipts data and landlord summary
+  const recentRentPayments = useMemo(() => {
+    if (receiptsData && receiptsData.length > 0) {
+      return receiptsData.map((r) => ({
+        id: r.id,
+        payment_reference: r.payment_reference || r.receipt_number || `REC-${r.id.slice(0, 6)}`,
+        property_name: r.property_title || r.property_name || 'Property Rental',
+        tenant_email: r.tenant_name || r.tenant_email || 'Tenant',
+        amount_usdc: String(r.amount_paid || r.amount_paid_usdc || 0),
+        status: 'CONFIRMED',
+        stellar_tx_hash: r.stellar_transaction_hash,
+        receipt_number: r.receipt_number,
+        created_at: r.payment_date || r.verified_at || r.created_at || new Date().toISOString(),
+      }));
+    }
+    if (landlordSummary?.recent_payments && landlordSummary.recent_payments.length > 0) {
+      return landlordSummary.recent_payments.map((p) => ({
+        id: p.id || p.payment_reference,
+        payment_reference: p.payment_reference,
+        property_name: p.property_name || 'Rental Unit',
+        tenant_email: p.tenant_email || 'Tenant',
+        amount_usdc: String(p.amount || 0),
+        status: p.status || 'CONFIRMED',
+        stellar_tx_hash: p.stellar_tx_hash,
+        receipt_number: p.receipt_number,
+        created_at: p.date || p.created_at || new Date().toISOString(),
+      }));
+    }
+    return hostMetrics?.recent_rent_payments || [];
+  }, [receiptsData, landlordSummary, hostMetrics]);
 
   const occupancyRate = totalUnits > 0 ? Math.round((occupiedUnits / totalUnits) * 100) : 0;
 
   const handleManualRefresh = async () => {
     setIsRefreshing(true);
     try {
-      await refreshBackendData();
+      await Promise.allSettled([
+        refreshBackendData(),
+        fetchPropertyData(),
+      ]);
     } finally {
       setIsRefreshing(false);
     }
@@ -571,48 +697,54 @@ export default function HostDashboardView() {
 
                   {managedProperties.length > 0 ? (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {managedProperties.map((prop) => (
-                        <div
-                          key={prop.id}
-                          className="bg-gray-50/70 border border-black/[0.06] rounded-2xl p-4 space-y-3 hover:border-black/[0.12] transition"
-                        >
-                          <div className="flex items-start justify-between gap-2">
-                            <div>
-                              <h3 className="font-bold text-sm text-gray-950">{prop.name}</h3>
-                              <p className="text-xs text-gray-500">{prop.city || 'Nairobi, Kenya'}</p>
+                      {managedProperties.map((prop) => {
+                        const totalU = Number(prop.total_units_count ?? prop.total_units ?? (prop.units ? prop.units.length : 0));
+                        const occU = Number(prop.occupied_units_count ?? prop.occupied_units ?? (prop.units ? prop.units.filter((u) => u.is_occupied).length : 0));
+                        const wallet = prop.receiving_wallet || prop.owner_wallet || '';
+
+                        return (
+                          <div
+                            key={prop.id}
+                            className="bg-gray-50/70 border border-black/[0.06] rounded-2xl p-4 space-y-3 hover:border-black/[0.12] transition"
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div>
+                                <h3 className="font-bold text-sm text-gray-950">{prop.name}</h3>
+                                <p className="text-xs text-gray-500">{prop.city || 'Nairobi, Kenya'}</p>
+                              </div>
+                              <span className="bg-emerald-100 text-[#06372d] text-[10px] font-bold px-2 py-0.5 rounded-full">
+                                Active
+                              </span>
                             </div>
-                            <span className="bg-emerald-100 text-[#06372d] text-[10px] font-bold px-2 py-0.5 rounded-full">
-                              Active
-                            </span>
-                          </div>
 
-                          <div className="text-xs text-gray-600 flex items-center justify-between pt-2 border-t border-black/[0.04]">
-                            <span>Units: <strong>{prop.occupied_units || 0}/{prop.total_units || 0} occupied</strong></span>
-                          </div>
+                            <div className="text-xs text-gray-600 flex items-center justify-between pt-2 border-t border-black/[0.04]">
+                              <span>Units: <strong>{occU}/{totalU} occupied</strong></span>
+                            </div>
 
-                          <div className="text-[11px] font-mono text-gray-500 bg-white p-2 rounded-xl border border-black/[0.04] truncate">
-                            <span className="text-[10px] text-gray-400 block uppercase">Owner Receiving Wallet:</span>
-                            {prop.receiving_wallet ? `${prop.receiving_wallet.slice(0, 10)}...${prop.receiving_wallet.slice(-8)}` : 'Not set'}
-                          </div>
+                            <div className="text-[11px] font-mono text-gray-500 bg-white p-2 rounded-xl border border-black/[0.04] truncate">
+                              <span className="text-[10px] text-gray-400 block uppercase">Owner Receiving Wallet:</span>
+                              {wallet ? `${wallet.slice(0, 10)}...${wallet.slice(-8)}` : 'Not set'}
+                            </div>
 
-                          <div className="flex items-center gap-2 pt-1">
-                            <button
-                              type="button"
-                              onClick={() => navigateTo('landlord-schedules')}
-                              className="w-full text-center text-xs font-semibold py-1.5 bg-white border border-black/[0.06] rounded-xl hover:bg-gray-100 text-gray-800 transition"
-                            >
-                              Schedules
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => navigateTo('landlord-properties')}
-                              className="w-full text-center text-xs font-semibold py-1.5 bg-[#06372d] text-white rounded-xl hover:bg-[#09473b] transition"
-                            >
-                              Units
-                            </button>
+                            <div className="flex items-center gap-2 pt-1">
+                              <button
+                                type="button"
+                                onClick={() => navigateTo('landlord-schedules')}
+                                className="w-full text-center text-xs font-semibold py-1.5 bg-white border border-black/[0.06] rounded-xl hover:bg-gray-100 text-gray-800 transition"
+                              >
+                                Schedules
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => navigateTo('landlord-properties')}
+                                className="w-full text-center text-xs font-semibold py-1.5 bg-[#06372d] text-white rounded-xl hover:bg-[#09473b] transition"
+                              >
+                                Units
+                              </button>
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   ) : (
                     <div className="p-8 text-center bg-gray-50/50 rounded-2xl border border-dashed border-black/[0.08]">

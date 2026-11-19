@@ -43,6 +43,7 @@ export default function HostPaymentsView() {
   const [searchQuery, setSearchQuery] = useState('');
   const [payouts, setPayouts] = useState([]);
   const [rentReceipts, setRentReceipts] = useState([]);
+  const [landlordSummary, setLandlordSummary] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [actionLoadingId, setActionLoadingId] = useState(null);
@@ -51,9 +52,10 @@ export default function HostPaymentsView() {
   const fetchPaymentsData = async () => {
     try {
       setLoading(true);
-      const [payoutsRes, receiptsRes] = await Promise.allSettled([
+      const [payoutsRes, receiptsRes, landlordRes] = await Promise.allSettled([
         api.payouts.list(),
         api.receipts.list(),
+        api.dashboard.getLandlordSummary(),
       ]);
 
       if (payoutsRes.status === 'fulfilled') {
@@ -63,6 +65,9 @@ export default function HostPaymentsView() {
       if (receiptsRes.status === 'fulfilled') {
         const rList = receiptsRes.value?.results || receiptsRes.value || [];
         setRentReceipts(rList);
+      }
+      if (landlordRes.status === 'fulfilled' && landlordRes.value) {
+        setLandlordSummary(landlordRes.value);
       }
     } catch (err) {
       console.warn('Failed to fetch host payments / receipts:', err.message);
@@ -193,8 +198,32 @@ export default function HostPaymentsView() {
       }
     }
 
+    // Also include recent_payments from landlordSummary if present
+    for (const p of landlordSummary?.recent_payments || []) {
+      const key = p.id || p.payment_reference;
+      if (!seen.has(key)) {
+        seen.add(key);
+        const amount = Number(p.amount || 0);
+        items.push({
+          id: p.id || p.payment_reference,
+          category: 'property',
+          rental_code: p.payment_reference || `REC-${String(key).slice(0, 6)}`,
+          title: p.property_name || 'Property Rental',
+          party: p.tenant_email || 'Tenant',
+          gross_usdc: amount,
+          fee_usdc: 0,
+          net_usdc: amount,
+          status: (p.status || '').toUpperCase() === 'CONFIRMED' ? 'COMPLETED' : 'PENDING',
+          tx_hash: p.stellar_tx_hash,
+          created_at: p.date || p.created_at,
+          receipt_number: p.receipt_number,
+          receipt_id: p.id,
+        });
+      }
+    }
+
     return items;
-  }, [rentReceipts, hostMetrics]);
+  }, [rentReceipts, hostMetrics, landlordSummary]);
 
   // Combined and filtered payments
   const combinedPayments = useMemo(() => {

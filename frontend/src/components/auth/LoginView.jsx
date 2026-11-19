@@ -36,8 +36,8 @@ export default function LoginView() {
     const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
     const targetMode = urlParams?.get('mode') || mode || 'renter';
 
-    if (setupRole === 'HOST' || targetMode === 'host') {
-      if (normalizedRole === 'host' || normalizedRole === 'admin') {
+    if (setupRole === 'HOST' || targetMode === 'host' || normalizedRole === 'host' || normalizedRole === 'landlord') {
+      if (normalizedRole === 'host' || normalizedRole === 'landlord' || normalizedRole === 'admin') {
         switchMode('host');
         navigateTo('host-dashboard');
       } else {

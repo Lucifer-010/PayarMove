@@ -13,43 +13,10 @@ const getInitialBaseUrl = () => {
     if (window.__PAYARMOVE_API_URL__) {
       return window.__PAYARMOVE_API_URL__;
     }
-
-    const hostname = window.location.hostname;
-
-    // Smart automatic detection based on active production domain
-    if (hostname === 'payarmove.com' || hostname === 'www.payarmove.com') {
-      // Purge any stale local development override from localStorage
-      try {
-        const saved = localStorage.getItem('payarmove_api_base_url');
-        if (saved && (saved.includes('localhost') || saved.includes('127.0.0.1'))) {
-          localStorage.removeItem('payarmove_api_base_url');
-        }
-      } catch (_) {}
-      return 'https://api.payarmove.com/api/v1';
-    }
-
-    if (hostname === '173.214.172.222') {
-      try {
-        const saved = localStorage.getItem('payarmove_api_base_url');
-        if (saved && (saved.includes('localhost') || saved.includes('127.0.0.1'))) {
-          localStorage.removeItem('payarmove_api_base_url');
-        }
-      } catch (_) {}
-      return 'http://173.214.172.222:8000/api/v1';
-    }
-
-    if (hostname === 'localhost' || hostname === '127.0.0.1') {
-      try {
-        const saved = localStorage.getItem('payarmove_api_base_url');
-        if (saved && saved.includes('payarmove.com')) {
-          localStorage.removeItem('payarmove_api_base_url');
-        }
-      } catch (_) {}
-      return 'http://localhost:8000/api/v1';
-    }
-
     const saved = localStorage.getItem('payarmove_api_base_url');
     if (saved) return saved;
+
+    return 'https://api.payarmove.com/api/v1';
   }
   return import.meta.env.VITE_API_BASE_URL || 'https://api.payarmove.com/api/v1';
 };

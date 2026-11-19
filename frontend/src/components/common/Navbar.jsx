@@ -53,6 +53,10 @@ export default function Navbar() {
   const activeWalletAddress = connectedWallet?.address || user?.walletAddress;
   const hasWallet = Boolean(activeWalletAddress);
 
+  const userRoleUpper = (user?.role || '').toUpperCase();
+  const isAdmin = userRoleUpper === 'ADMIN' || Boolean(user?.is_staff || user?.is_superuser);
+  const isHostOrLandlord = userRoleUpper === 'HOST' || userRoleUpper === 'LANDLORD' || isAdmin;
+
   return (
     <>
       <header className="sticky top-0 z-40 bg-white/90 backdrop-blur-md border-b border-black/[0.03] shadow-[0_2px_15px_-3px_rgba(0,0,0,0.03)] transition">
@@ -400,92 +404,66 @@ export default function Navbar() {
             )}
 
 
-            {/* Host Role: 'Hosting ▾' Dropdown Pill */}
-            {user?.isLoggedIn && user?.role === 'host' && (
-              <div className="relative">
+            {/* Host / Landlord / Admin Mode Switcher Pill */}
+            {user?.isLoggedIn && isHostOrLandlord && (
+              <div className="relative shrink-0">
                 <button
                   onClick={() => setModeMenuOpen(!modeMenuOpen)}
-                  className="flex items-center gap-2 bg-[#06372d] text-white px-4 py-1.5 rounded-full text-xs font-semibold hover:bg-[#09473b] transition shadow-xs"
+                  className="flex items-center gap-2 bg-[#06372d] text-white px-3.5 sm:px-4 py-1.5 rounded-full text-xs font-semibold hover:bg-[#09473b] transition shadow-xs whitespace-nowrap"
                 >
-                  <span>{mode === 'host' ? 'Hosting' : 'Renting'}</span>
-                  <ChevronDown className="w-3.5 h-3.5" />
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                  <span>{mode === 'host' ? 'Hosting' : mode === 'admin' ? 'Admin' : 'Renting'}</span>
+                  <ChevronDown className="w-3.5 h-3.5 text-white/80" />
                 </button>
 
                 {modeMenuOpen && (
-                  <div className="absolute right-0 mt-2 w-44 bg-white rounded-2xl shadow-[0_16px_40px_-8px_rgba(0,0,0,0.08)] border border-black/[0.04] py-1.5 z-50 animate-in fade-in">
-                    <button
-                      onClick={() => {
-                        setModeMenuOpen(false);
-                        switchMode('renter');
-                        navigateTo('explore');
-                      }}
-                      className="w-full text-left px-4 py-2 hover:bg-gray-50 text-xs font-semibold text-gray-700 flex items-center justify-between"
-                    >
-                      <span>Renting</span>
-                      {mode === 'renter' && <span className="text-[10px] text-emerald-600 font-bold">Active</span>}
-                    </button>
+                  <div className="absolute right-0 mt-2 w-48 bg-white rounded-2xl shadow-[0_16px_40px_-8px_rgba(0,0,0,0.12)] border border-black/[0.06] py-1.5 z-50 animate-in fade-in">
                     <button
                       onClick={() => {
                         setModeMenuOpen(false);
                         switchMode('host');
                         navigateTo('host-dashboard');
                       }}
-                      className="w-full text-left px-4 py-2 hover:bg-gray-50 text-xs font-semibold text-gray-700 flex items-center justify-between"
+                      className="w-full text-left px-4 py-2.5 hover:bg-gray-50 text-xs font-semibold text-gray-800 flex items-center justify-between"
                     >
-                      <span>Hosting</span>
-                      {mode === 'host' && <span className="text-[10px] text-emerald-600 font-bold">Active</span>}
+                      <span className="flex items-center gap-2">
+                        <Building2 className="w-3.5 h-3.5 text-emerald-700" />
+                        <span>Host & Landlord</span>
+                      </span>
+                      {mode === 'host' && <span className="text-[10px] text-emerald-600 font-bold bg-emerald-50 px-1.5 py-0.5 rounded">Active</span>}
                     </button>
-                  </div>
-                )}
-              </div>
-            )}
 
-            {/* Admin Role: 'Admin ▾' Pill */}
-            {user?.isLoggedIn && user?.role === 'admin' && (
-              <div className="relative">
-                <button
-                  onClick={() => setModeMenuOpen(!modeMenuOpen)}
-                  className="flex items-center gap-2 bg-gray-900 text-white px-4 py-1.5 rounded-full text-xs font-semibold hover:bg-black transition shadow-xs"
-                >
-                  <span className="capitalize">{mode}</span>
-                  <ChevronDown className="w-3.5 h-3.5" />
-                </button>
-
-                {modeMenuOpen && (
-                  <div className="absolute right-0 mt-2 w-44 bg-white rounded-2xl shadow-[0_16px_40px_-8px_rgba(0,0,0,0.08)] border border-black/[0.04] py-1.5 z-50 animate-in fade-in">
-                    <button
-                      onClick={() => {
-                        setModeMenuOpen(false);
-                        switchMode('admin');
-                        navigateTo('admin-overview');
-                      }}
-                      className="w-full text-left px-4 py-2 hover:bg-gray-50 text-xs font-semibold text-gray-700 flex items-center justify-between"
-                    >
-                      <span>Admin Portal</span>
-                      {mode === 'admin' && <span className="text-[10px] text-emerald-600 font-bold">Active</span>}
-                    </button>
-                    <button
-                      onClick={() => {
-                        setModeMenuOpen(false);
-                        switchMode('host');
-                        navigateTo('host-dashboard');
-                      }}
-                      className="w-full text-left px-4 py-2 hover:bg-gray-50 text-xs font-semibold text-gray-700 flex items-center justify-between"
-                    >
-                      <span>Hosting</span>
-                      {mode === 'host' && <span className="text-[10px] text-emerald-600 font-bold">Active</span>}
-                    </button>
                     <button
                       onClick={() => {
                         setModeMenuOpen(false);
                         switchMode('renter');
                         navigateTo('explore');
                       }}
-                      className="w-full text-left px-4 py-2 hover:bg-gray-50 text-xs font-semibold text-gray-700 flex items-center justify-between"
+                      className="w-full text-left px-4 py-2.5 hover:bg-gray-50 text-xs font-semibold text-gray-800 flex items-center justify-between"
                     >
-                      <span>Renting</span>
-                      {mode === 'renter' && <span className="text-[10px] text-emerald-600 font-bold">Active</span>}
+                      <span className="flex items-center gap-2">
+                        <Car className="w-3.5 h-3.5 text-gray-500" />
+                        <span>Renter Mode</span>
+                      </span>
+                      {mode === 'renter' && <span className="text-[10px] text-emerald-600 font-bold bg-emerald-50 px-1.5 py-0.5 rounded">Active</span>}
                     </button>
+
+                    {isAdmin && (
+                      <button
+                        onClick={() => {
+                          setModeMenuOpen(false);
+                          switchMode('admin');
+                          navigateTo('admin-overview');
+                        }}
+                        className="w-full text-left px-4 py-2.5 hover:bg-gray-50 text-xs font-semibold text-gray-800 flex items-center justify-between border-t border-black/[0.04]"
+                      >
+                        <span className="flex items-center gap-2">
+                          <Shield className="w-3.5 h-3.5 text-purple-700" />
+                          <span>Admin Portal</span>
+                        </span>
+                        {mode === 'admin' && <span className="text-[10px] text-purple-600 font-bold bg-purple-50 px-1.5 py-0.5 rounded">Active</span>}
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
@@ -554,21 +532,45 @@ export default function Navbar() {
                       </button>
 
                       <div className="border-t border-black/[0.04] my-1 pt-1">
-                        {(user.role === 'host' || user.role === 'admin') && (
-                          <button
-                            onClick={() => {
-                              setUserMenuOpen(false);
-                              switchMode('host');
-                              navigateTo('host-dashboard');
-                            }}
-                            className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-center gap-2.5 text-gray-700 font-medium"
-                          >
-                            <Settings className="w-4 h-4 text-gray-500" />
-                            <span>Host Dashboard</span>
-                          </button>
+                        {isHostOrLandlord && (
+                          <>
+                            <button
+                              onClick={() => {
+                                setUserMenuOpen(false);
+                                if (mode === 'host') {
+                                  switchMode('renter');
+                                  navigateTo('explore');
+                                } else {
+                                  switchMode('host');
+                                  navigateTo('host-dashboard');
+                                }
+                              }}
+                              className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-center justify-between text-gray-700 font-medium"
+                            >
+                              <span className="flex items-center gap-2.5">
+                                <Building2 className="w-4 h-4 text-emerald-700" />
+                                <span>{mode === 'host' ? 'Switch to Renter Mode' : 'Switch to Host & Landlord'}</span>
+                              </span>
+                              <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+                                {mode === 'host' ? 'Hosting' : 'Renting'}
+                              </span>
+                            </button>
+
+                            <button
+                              onClick={() => {
+                                setUserMenuOpen(false);
+                                switchMode('host');
+                                navigateTo('host-dashboard');
+                              }}
+                              className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-center gap-2.5 text-gray-700 font-medium"
+                            >
+                              <Settings className="w-4 h-4 text-gray-500" />
+                              <span>Host Dashboard</span>
+                            </button>
+                          </>
                         )}
 
-                        {user.role === 'admin' && (
+                        {isAdmin && (
                           <button
                             onClick={() => {
                               setUserMenuOpen(false);
